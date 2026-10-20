@@ -243,3 +243,31 @@ def test_scan_without_entry_asks_and_records(
         )
     text = scope.read_text(encoding="utf-8")
     assert 'host = "site.test"' in text and "allow_active = false" in text
+
+
+@respx.mock
+async def test_state_file_holds_no_cookies_or_tokens(tmp_path: Path) -> None:
+    """CWE-312: cookies, tokens and bodies must not reach the resume state file."""
+    fake_key = "sk" + "_live_" + "7" * 24
+    session = "S3ss10nValue" + "x" * 20
+    state = tmp_path / "state.jsonl"
+    respx.get(f"{BASE}/").mock(
+        return_value=httpx.Response(
+            200,
+            headers=[
+                ("Content-Type", "text/html"),
+                ("Set-Cookie", f"session={session}; Path=/; HttpOnly"),
+                ("X-Api-Token", fake_key),
+            ],
+            text=f'<a href="/a">a</a><a href="/reset?token={fake_key}">r</a><p>{session}</p>',
+        )
+    )
+    respx.get(f"{BASE}/a").mock(side_effect=RuntimeError("interrupted"))
+    respx.route(host="site.test").mock(return_value=httpx.Response(404))
+    with pytest.raises(RuntimeError):
+        await crawler(state_path=state).run()
+    text = state.read_text(encoding="utf-8")
+    assert session not in text and fake_key not in text
+    assert "<p>" not in text  # no bodies
+    assert '"session=; Path=/; HttpOnly"' in text  # name + attributes kept for cookie checks
+    assert f"{BASE}/a" in text  # the unfetched link is what resume needs

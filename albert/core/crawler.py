@@ -8,6 +8,7 @@ import asyncio
 import json
 import re
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from html import unescape
 from pathlib import Path
@@ -25,9 +26,10 @@ from albert.core.http_client import (
 )
 from albert.core.models import CollectedResponse
 from albert.core.scope import OutOfScopeError, ScopePolicy
+from albert.core.secrets import redact
 
 ROBOTS_AGENT = "Albert"
-STATE_VERSION = 1
+STATE_VERSION = 2
 MAX_SITEMAPS = 5
 MAX_RECORDED_SKIPS = 1000
 
@@ -119,6 +121,32 @@ def url_shape(url: str) -> str:
     return re.sub(r"\d+", "N", parts.path) + ("?" + "&".join(names) if names else "")
 
 
+_STATE_DROP_HEADERS = {"authorization", "proxy-authorization", "cookie"}
+
+
+def sanitize_headers(headers: Iterable[tuple[str, str]]) -> list[list[str]]:
+    """Headers safe to write to the resume state (CWE-312): request-credential headers dropped,
+    Set-Cookie values blanked (name + attributes kept for cookie checks), the rest redacted."""
+    out = []
+    for name, value in headers:
+        key = name.lower()
+        if key in _STATE_DROP_HEADERS:
+            continue
+        if key == "set-cookie":
+            pair, sep, attrs = value.partition(";")
+            value = pair.split("=", 1)[0].strip() + "=" + sep + redact(attrs)
+        else:
+            value = redact(value)
+        out.append([name, value])
+    return out
+
+
+@dataclass
+class _ResumeState:
+    pages: list[tuple[CollectedResponse, int, bool]] = field(default_factory=list)
+    links: list[tuple[str, int]] = field(default_factory=list)
+
+
 # --- Crawler ------------------------------------------------------------------------------
 
 
@@ -186,6 +214,8 @@ class Crawler:
         self._fatal: BaseException | None = None
         self._resume_until = 0.0
         self._client: HttpClient | None = None
+        self._loading = False  # replaying resume state: don't re-append it
+        self._unsaved_links = 0
 
     # -- bookkeeping --
 
@@ -247,6 +277,7 @@ class Crawler:
             self._skip(norm, "disallowed by robots.txt")
             return
         self._queue.put_nowait((norm, depth))
+        self._record_link(norm, depth)
 
     def _robots_allows(self, url: str) -> bool:
         if self._robots_mode == "rules":
@@ -256,16 +287,16 @@ class Crawler:
     # -- resume state --
 
     def _write_state(self, record: dict[str, Any]) -> None:
-        if self.state_path is None:
+        if self.state_path is None or self._loading:
             return
         with self.state_path.open("a", encoding="utf-8", newline="\n") as fh:
             fh.write(json.dumps(record) + "\n")
 
-    def _load_state(self) -> list[tuple[CollectedResponse, int, bool]]:
-        """Completed hops from a previous interrupted run of the same start URL."""
+    def _load_state(self) -> _ResumeState | None:
+        """Completed pages + unfetched links from an interrupted run of the same start URL."""
         if self.state_path is None or not self.resume or not self.state_path.exists():
-            return []
-        loaded: list[tuple[CollectedResponse, int, bool]] = []
+            return None
+        state = _ResumeState()
         with self.state_path.open(encoding="utf-8") as fh:
             for i, line in enumerate(fh):
                 try:
@@ -274,12 +305,21 @@ class Crawler:
                     break  # torn final line from the interruption
                 if i == 0:
                     if rec.get("start_url") != self.start_url or rec.get("v") != STATE_VERSION:
-                        self.result.notes.append("resume state ignored (different start URL)")
-                        return []
-                    continue
-                resp = CollectedResponse.from_dict(rec["response"])
-                loaded.append((resp, int(rec["depth"]), bool(rec["first_hop"])))
-        return loaded
+                        self.result.notes.append(
+                            "resume state ignored (different start URL/format)"
+                        )
+                        return None
+                elif rec.get("type") == "page":
+                    resp = CollectedResponse(
+                        rec["url"],
+                        int(rec["status"]),
+                        tuple((str(k), str(v)) for k, v in rec["headers"]),
+                        rec.get("http_version", "HTTP/1.1"),
+                    )
+                    state.pages.append((resp, int(rec["depth"]), bool(rec["first_hop"])))
+                elif rec.get("type") == "link":
+                    state.links.append((rec["url"], int(rec["depth"])))
+        return state
 
     def _record(self, resp: CollectedResponse, depth: int, first_hop: bool, *, save: bool) -> None:
         self.result.responses.append(resp)
@@ -287,7 +327,23 @@ class Crawler:
         if key := dedup_key(resp.url):
             self._seen.add(key)
         if save:
-            self._write_state({"response": resp.to_dict(), "depth": depth, "first_hop": first_hop})
+            self._write_state(
+                {
+                    "type": "page",
+                    "url": redact(resp.url),
+                    "status": resp.status,
+                    "http_version": resp.http_version,
+                    "headers": sanitize_headers(resp.headers),
+                    "depth": depth,
+                    "first_hop": first_hop,
+                }
+            )
+
+    def _record_link(self, url: str, depth: int) -> None:
+        if redact(url) != url:  # never persist a URL carrying a secret-looking token
+            self._unsaved_links += 1
+            return
+        self._write_state({"type": "link", "url": url, "depth": depth})
 
     def _follow_links(self, resp: CollectedResponse, depth: int) -> None:
         if resp.status == 200 and resp.content_type in {"text/html", "application/xhtml+xml"}:
@@ -403,10 +459,9 @@ class Crawler:
     async def run(self) -> CrawlResult:
         """Crawl until the frontier is empty, a cap is hit, or the target blocks us."""
         loaded = self._load_state()
-        fresh = not loaded
         if self.state_path is not None:
             self.state_path.parent.mkdir(parents=True, exist_ok=True)
-            if fresh:
+            if loaded is None:
                 self.state_path.write_text("", encoding="utf-8")
                 self._write_state({"start_url": self.start_url, "v": STATE_VERSION})
 
@@ -415,14 +470,18 @@ class Crawler:
             await self._load_robots()
         async with HttpClient(self.policy, self.client_limits) as client:
             self._client = client
-            for resp, depth, first_hop in loaded:
-                self._record(resp, depth, first_hop, save=False)
-                self._started += first_hop
-            self.result.resumed = len(loaded)
-            if loaded:
-                self.result.notes.append(f"resumed: {len(loaded)} responses loaded, not re-fetched")
-            for resp, depth, _ in loaded:
-                self._follow_links(resp, depth)
+            if loaded is not None:
+                self._loading = True
+                for resp, depth, first_hop in loaded.pages:
+                    self._record(resp, depth, first_hop, save=False)
+                    self._started += first_hop
+                for url, depth in loaded.links:
+                    self.enqueue(url, depth)  # completed ones are already in _seen
+                self._loading = False
+                self.result.resumed = len(loaded.pages)
+                self.result.notes.append(
+                    f"resumed: {len(loaded.pages)} responses loaded (headers only), not re-fetched"
+                )
             self.enqueue(self.start_url, 0)
             await self._load_sitemaps()
             workers = [
@@ -434,6 +493,10 @@ class Crawler:
                 for w in workers:
                     w.cancel()
                 await asyncio.gather(*workers, return_exceptions=True)
+        if self._unsaved_links:
+            self.result.notes.append(
+                f"{self._unsaved_links} link(s) with secret-like tokens not saved for resume"
+            )
         if self._fatal is not None:
             raise self._fatal  # state file kept: the run can be resumed
         if self.state_path is not None and self._stop_reason is None:
