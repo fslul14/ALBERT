@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "albert"
+version = "0.0.1"
+description = "Passive web vulnerability scanner — detection only, never exploits."
+requires-python = ">=3.11"
+authors = [{ name = "Frenki" }]
+dependencies = [
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
+    "selectolax>=0.3",
+    "playwright>=1.45",
+    "cryptography>=42",
+    "sslyze>=6.0",
+    "dnspython>=2.6",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "respx>=0.21", "ruff>=0.5", "mypy>=1.10", "types-PyYAML"]
+
+[project.scripts]
+albert = "albert.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["albert*"]
+
+[tool.setuptools.package-data]
+albert = ["rules/*.yaml", "data/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

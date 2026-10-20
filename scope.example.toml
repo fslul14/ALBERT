@@ -1,0 +1,13 @@
+# Copy to scope.toml (gitignored). `albert scan` refuses any host without an entry.
+
+[[target]]
+host = "example.com"
+authorized_by = "self (own domain)"   # or "friend, written OK 2026-10-xx", "HackerOne: <program>"
+date = "2026-10-20"
+allow_active = false
+
+[[target]]
+host = "localhost"
+authorized_by = "self (local Juice Shop lab)"
+date = "2026-10-20"
+allow_active = false
