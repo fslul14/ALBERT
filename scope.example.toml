@@ -1,4 +1,6 @@
 # Copy to scope.toml (gitignored). `albert scan` refuses any host without an entry.
+# host: bare hostname or IP, exact match (no scheme/port/path; subdomains need their own entry).
+# authorized_by: required, non-blank. date: YYYY-MM-DD. allow_active: optional, default false.
 
 [[target]]
 host = "example.com"
