@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import ipaddress
-import re
 import tomllib
 from dataclasses import dataclass
 from datetime import date
@@ -12,10 +10,10 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from albert.core.models import ScanMode, Target
+from albert.core.scope import normalize_host
 
 DEFAULT_SCOPE_PATH = Path("scope.toml")
 
-_LABEL = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)$")
 _KEYS = {"host", "authorized_by", "date", "allow_active"}
 
 
@@ -31,35 +29,6 @@ class ScopeEntry:
     authorized_by: str
     date: date
     allow_active: bool = False
-
-
-def normalize_host(raw: str) -> str:
-    """Lowercase, strip a trailing dot, punycode-encode; raise ValueError if not a bare host."""
-    host = raw.strip().lower().rstrip(".")
-    if not host or (any(c in host for c in "/@:?#* \t") and not _is_ipv6(host)):
-        raise ValueError("must be a bare hostname or IP (no scheme, port, path, or wildcard)")
-    if _is_ip(host):
-        return host
-    try:
-        host = host.encode("idna").decode("ascii")
-    except UnicodeError as e:
-        raise ValueError(f"invalid hostname ({e})") from None
-    labels = host.split(".")
-    if len(host) > 253 or not all(_LABEL.match(label) for label in labels):
-        raise ValueError("invalid hostname")
-    return host
-
-
-def _is_ip(host: str) -> bool:
-    try:
-        ipaddress.ip_address(host)
-    except ValueError:
-        return False
-    return True
-
-
-def _is_ipv6(host: str) -> bool:
-    return ":" in host and _is_ip(host)
 
 
 def _parse_date(value: Any) -> date:
