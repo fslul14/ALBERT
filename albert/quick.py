@@ -22,7 +22,7 @@ from albert.core.http_client import (
     FetchError,
     HttpClient,
 )
-from albert.core.models import CollectedResponse, ScanResult, Target
+from albert.core.models import CollectedResponse, DnsSnapshot, ScanResult, Target
 from albert.core.scope import OutOfScopeError, ScopePolicy, registrable_domain
 from albert.core.tls_client import TLSLimits, collect_tls
 
@@ -118,18 +118,19 @@ async def run_tls_step(
     result.checks_run.append("tls")
 
 
-async def run_dns_step(result: ScanResult, host: str) -> None:
+async def run_dns_step(result: ScanResult, host: str) -> DnsSnapshot | None:
     """DNS/email posture for the target's registrable domain (its own published records)."""
     domain = registrable_domain(host)
     if domain is None:
         result.notes.append(f"DNS/email skipped: {host} has no registrable domain (IP/local)")
-        return
+        return None
     snap = await collect_dns(domain, host, fetch_policy=fetch_mta_sts_policy)
     result.findings += run_dns_email_checks([snap])
     result.notes += list(snap.notes)
     if snap.mta_sts_policy is not None:
         result.pages.append(snap.mta_sts_policy.url)
     result.checks_run.append("dns_email")
+    return snap
 
 
 async def run_quick(target: Target) -> ScanResult:

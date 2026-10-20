@@ -52,7 +52,10 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--render", action="store_true", help="render pages in headless Chromium")
     scan.add_argument("--render-max", type=int, default=RenderLimits.max_pages)
     scan.add_argument(
-        "--full", action="store_true", help="also check DNS/email records (SPF, DMARC, ...)"
+        "--full",
+        action="store_true",
+        help="also DNS/email records and external intel (crt.sh, Wayback, blocklists, Safe "
+        "Browsing): third-party services, never the target",
     )
     scan.add_argument(
         "--cve",
@@ -158,6 +161,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 cve_mode=args.cve,
                 full=args.full,
                 cache_dir=default_cache_dir(args.out),
+                scope_hosts=frozenset(e.host for e in scope.entries),
             )
         )
         return _finish(result, args)

@@ -157,6 +157,7 @@ async def collect_dns(
             continue  # null MX
         if mx_host == d or mx_host.endswith("." + d):
             await client.query(f"_25._tcp.{mx_host}", "TLSA")
+            await client.query(mx_host, "A")  # for MX IP reputation (intel, --full)
         else:
             off_domain.append(mx_host)
     if off_domain:

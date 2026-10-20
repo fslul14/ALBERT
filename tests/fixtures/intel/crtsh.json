@@ -1,0 +1,10 @@
+[
+ {"id": 1, "issuer_name": "C=US, O=Let's Encrypt, CN=R11", "common_name": "shop.test",
+  "name_value": "shop.test\nwww.shop.test", "not_before": "2026-09-01T00:00:00"},
+ {"id": 2, "issuer_name": "C=US, O=Let's Encrypt, CN=R11", "common_name": "*.shop.test",
+  "name_value": "*.shop.test\nSTAGING.shop.test", "not_before": "2026-08-01T00:00:00"},
+ {"id": 3, "issuer_name": "C=US, O=Let's Encrypt, CN=R10", "common_name": "old-admin.shop.test",
+  "name_value": "old-admin.shop.test\nvpn.shop.test", "not_before": "2024-01-01T00:00:00"},
+ {"id": 4, "issuer_name": "C=US, O=Example CA", "common_name": "shop.test.other.example",
+  "name_value": "shop.test.other.example\nnotshop.test", "not_before": "2025-01-01T00:00:00"}
+]

@@ -161,7 +161,7 @@ _API = re.compile(
     r"[\"'`]((?:https?://[\w.-]+(?::\d+)?)?/(?:api|graphql|rest|services|v[1-9]\d?)(?:[/?][^\"'`\s<>]*)?)[\"'`]"
 )
 _STATIC_EXT = re.compile(r"\.(?:js|mjs|css|png|jpe?g|gif|svg|webp|ico|woff2?|map)(?:\?|$)", re.I)
-_SENSITIVE_PATH = re.compile(
+SENSITIVE_PATH = re.compile(
     r"(?i)(?:^|/)(?:admin\w*|administrator|backups?\w*|bak|old|dev|staging|stage|tests?|internal|"
     r"private|secrets?|config\w*|conf|\.git|\.svn|\.env|\.htpasswd|\.ds_store|db|database|sql|"
     r"dumps?|phpmyadmin|wp-admin|cgi-bin|debug|logs?|tmp|temp|install\w*|setup|console|"
@@ -489,7 +489,7 @@ def check_robots(resp: CollectedResponse) -> list[Finding]:
     for line in resp.text.splitlines():
         key, _, value = line.partition(":")
         value = value.split("#")[0].strip()
-        if key.strip().lower() in {"disallow", "allow"} and value and _SENSITIVE_PATH.search(value):
+        if key.strip().lower() in {"disallow", "allow"} and value and SENSITIVE_PATH.search(value):
             paths.append(value)
     if not paths:
         return []
@@ -516,7 +516,7 @@ def check_sitemap(resp: CollectedResponse) -> list[Finding]:
     if resp.status != 200 or not re.search(r"<(?:urlset|sitemapindex)\b", resp.text[:2000]):
         return []
     locs = [m.strip() for m in re.findall(r"<loc>\s*(.*?)\s*</loc>", resp.text, re.S)]
-    hits = [u for u in locs if _SENSITIVE_PATH.search(urlsplit(u).path)]
+    hits = [u for u in locs if SENSITIVE_PATH.search(urlsplit(u).path)]
     if not hits:
         return []
     return [

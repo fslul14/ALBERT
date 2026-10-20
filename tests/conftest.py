@@ -97,3 +97,16 @@ def _fake_dns_step(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPat
         return DnsSnapshot(domain, host, notes=("DNS not queried in tests",))
 
     monkeypatch.setattr("albert.quick.collect_dns", fake)
+
+
+@pytest.fixture(autouse=True)
+def _fake_intel_step(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """scan --full gets an empty intel report unless a test is marked ``real_intel``."""
+    if request.node.get_closest_marker("real_intel"):
+        return
+    from albert.core.intel_sources import IntelReport
+
+    async def fake(domain: str, *a: Any, **kw: Any) -> IntelReport:
+        return IntelReport(domain)
+
+    monkeypatch.setattr("albert.scan.collect_intel", fake)

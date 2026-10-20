@@ -65,8 +65,7 @@ def test_third_party_origins_counted_from_recorded_attempts() -> None:
     assert (f.severity, f.confidence) == (S.INFO, C.HIGH)
     values = [e.value for e in f.evidence]
     assert (
-        values[0]
-        == "https://www.googletagmanager.com: 2 request(s) on 2 page(s) "
+        values[0] == "https://www.googletagmanager.com: 2 request(s) on 2 page(s) "
         "[Google Tag Manager, tag-manager]"
     )
     assert not any("cdn.shop.test" in v for v in values)  # same registrable domain: first party

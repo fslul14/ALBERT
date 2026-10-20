@@ -1,0 +1,5 @@
+[["original", "timestamp", "statuscode"],
+ ["https://shop.test/", "20240101000000", "200"],
+ ["https://shop.test/backup.zip", "20190305120000", "200"],
+ ["https://shop.test/admin/login", "20210710080000", "200"],
+ ["https://shop.test/blog/hello", "20220101000000", "200"]]

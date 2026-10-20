@@ -39,6 +39,7 @@ markers = [
     "real_tls: use the real TLS collector (local 127.0.0.1 server only)",
     "real_dns: use the real DNS step (with an injected fake resolver)",
     "dns_guard_test: the one test allowed to trip the DNS send guard (it checks the guard)",
+    "real_intel: use the real intel collector (with mocked services)",
 ]
 filterwarnings = ["ignore:Parsed a serial number:cryptography.utils.CryptographyDeprecationWarning"]
 

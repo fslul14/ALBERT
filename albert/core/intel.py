@@ -1,4 +1,5 @@
-"""Third-party intelligence egress (vulnerability databases). Never contacts the target.
+"""Third-party intelligence egress (vulnerability DBs, CT logs, Wayback, Safe Browsing, DNS
+blocklists). Never contacts the target.
 
 ``IntelPolicy`` is this path's checkpoint, enforced in the transport before any socket:
 only the listed service endpoints, only the listed methods, HTTPS only, and never a scan
@@ -8,7 +9,7 @@ target host. Requests carry package/product names and versions only, never targe
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from types import TracebackType
 from typing import Any, Self
 from urllib.parse import urlsplit
@@ -16,17 +17,33 @@ from urllib.parse import urlsplit
 import httpx
 
 from albert import __version__
+from albert.core.models import DnsAnswer
 from albert.core.scope import OutOfScopeError, normalize_host
 
 USER_AGENT = f"Albert/{__version__} (vulnerability lookup; +https://github.com/fslul14/ALBERT)"
 
-# service host -> method -> allowed path prefixes
+# service host -> method -> allowed exact paths
 INTEL_ENDPOINTS: dict[str, dict[str, tuple[str, ...]]] = {
     "api.osv.dev": {"POST": ("/v1/query",)},
     "services.nvd.nist.gov": {"GET": ("/rest/json/cves/2.0",)},
+    "crt.sh": {"GET": ("/",)},  # Certificate Transparency search
+    "web.archive.org": {"GET": ("/cdx/search/cdx",)},  # Wayback Machine CDX index
+    "safebrowsing.googleapis.com": {"POST": ("/v4/threatMatches:find",)},
 }
 # Minimum seconds between requests per service (NVD: 5 requests / 30 s without an API key).
-SPACING = {"api.osv.dev": 0.2, "services.nvd.nist.gov": 6.5}
+SPACING = {
+    "api.osv.dev": 0.2,
+    "services.nvd.nist.gov": 6.5,
+    "crt.sh": 2.0,
+    "web.archive.org": 1.0,
+    "safebrowsing.googleapis.com": 0.2,
+}
+# Third-party DNS blocklist zones (DNSBL): name suffix -> what is looked up under it.
+INTEL_DNS_ZONES = {
+    "dbl.spamhaus.org": "domain",
+    "multi.surbl.org": "domain",
+    "zen.spamhaus.org": "ip",
+}
 
 
 class IntelError(Exception):
@@ -53,9 +70,38 @@ class IntelPolicy:
         if host in self.target_hosts:
             raise OutOfScopeError(f"intel request refused: {host!r} is a scan target")
         allowed = INTEL_ENDPOINTS.get(host, {}).get(method.upper())
-        if not allowed or not any(parts.path.startswith(p) for p in allowed):
+        if not allowed or parts.path not in allowed:
             raise OutOfScopeError(f"intel request refused: {method} {host}{parts.path} not allowed")
         return host
+
+
+class IntelDnsPolicy:
+    """Checkpoint for DNS blocklist lookups: only names under the listed DNSBL zones, type A."""
+
+    def check(self, name: str, rtype: str) -> str:
+        n = name.strip().lower().rstrip(".")
+        if rtype.upper() != "A":
+            raise OutOfScopeError(f"intel DNS type {rtype} refused")
+        zone = next((z for z in INTEL_DNS_ZONES if n.endswith("." + z)), None)
+        if zone is None or n == zone:
+            raise OutOfScopeError(f"intel DNS name {n!r} is not under a blocklist zone")
+        return n
+
+
+class IntelDns:
+    """DNS blocklist queries; the policy is checked before any packet."""
+
+    def __init__(self, resolve: Callable[[str, str], Awaitable[DnsAnswer]] | None = None) -> None:
+        self.policy = IntelDnsPolicy()
+        self._resolve = resolve
+
+    async def query(self, name: str) -> DnsAnswer:
+        n = self.policy.check(name, "A")
+        if self._resolve is not None:
+            return await self._resolve(n, "A")
+        from albert.core.dns_client import system_resolve
+
+        return await system_resolve(n, "A")
 
 
 class _IntelTransport(httpx.AsyncBaseTransport):

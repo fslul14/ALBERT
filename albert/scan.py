@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 
 from albert.checks.cve import match_cves
 from albert.checks.fingerprint import FingerprintInput, detect_technologies
+from albert.checks.intel_lookups import intel_findings
 from albert.checks.js import run_js_checks
 from albert.checks.privacy import PrivacyInput, run_privacy_checks
 from albert.checks.rendered import reconcile_meta_csp, run_rendered_checks
@@ -15,12 +16,47 @@ from albert.core.browser import RenderError, RenderLimits, render_pages
 from albert.core.crawler import Crawler, CrawlLimits
 from albert.core.engine import run_checks
 from albert.core.http_client import ClientLimits, HttpClient
-from albert.core.models import CollectedResponse, RenderedPage, ScanResult, Target
-from albert.core.scope import ScopePolicy
+from albert.core.intel_sources import collect_intel
+from albert.core.models import CollectedResponse, DnsSnapshot, RenderedPage, ScanResult, Target
+from albert.core.scope import ScopePolicy, registrable_domain
 from albert.core.vulndb import CveMode, default_cache_dir, lookup_all
 from albert.quick import run_dns_step, run_tls_step
 
 INSTALL_HINT = r".venv\Scripts\playwright install chromium"
+
+
+async def _intel_step(
+    result: ScanResult,
+    target: Target,
+    snap: DnsSnapshot | None,
+    cache_dir: Path | None,
+    scope_hosts: frozenset[str],
+) -> None:
+    """Third-party intel (CT, Wayback, blocklists, Safe Browsing). Never contacts the target;
+    surfaced hosts are reported with their scope status, never contacted."""
+    domain = registrable_domain(target.host)
+    if domain is None:
+        result.notes.append("external intel skipped: no registrable domain")
+        return
+    mx_ips = [
+        v
+        for a in (snap.answers if snap else ())
+        if a.rtype == "A" and a.name != snap.host  # type: ignore[union-attr]
+        for v in a.values
+    ]
+    base = (cache_dir or default_cache_dir(Path("reports"))).parent / "intel"
+    report = await collect_intel(domain, (target.host,), base, mx_ips=mx_ips)
+    result.findings += intel_findings(report, lambda h: h in scope_hosts)
+    result.checks_run.append("intel")
+    result.notes.append(
+        "external intel: crt.sh, Wayback, DNS blocklists"
+        + (
+            ", Safe Browsing"
+            if any(r.source == "safe_browsing" and r.status != "skipped" for r in report.results)
+            else ""
+        )
+        + " (third-party services only; discovered hosts were not contacted)"
+    )
 
 
 async def run_scan(
@@ -34,6 +70,7 @@ async def run_scan(
     cve_mode: CveMode = "cache",
     cache_dir: Path | None = None,
     full: bool = False,
+    scope_hosts: frozenset[str] | None = None,
 ) -> ScanResult:
     """Crawl the target (scope-checked, same host), run page checks, optionally render
     pages headlessly (opt-in), then inspect TLS."""
@@ -90,7 +127,8 @@ async def run_scan(
         )
     await run_tls_step(result, policy, target.url, crawl.responses[:1], http_budget=3)
     if full:
-        await run_dns_step(result, target.host)
+        snap = await run_dns_step(result, target.host)
+        await _intel_step(result, target, snap, cache_dir, scope_hosts or frozenset(policy.hosts))
     result.finish()
     return result
 
