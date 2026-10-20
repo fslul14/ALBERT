@@ -66,8 +66,12 @@ async def test_vulnerable_version_matches_patched_does_not(tmp_path: Path) -> No
     assert set(found) == {"VULN-CVE-2020-11022-jQuery", "VULN-CVE-2020-11023-jQuery"}
     f = found["VULN-CVE-2020-11022-jQuery"]
     assert f.title == "jQuery 3.4.1 affected by CVE-2020-11022"
-    assert (f.severity, f.confidence) == (S.MEDIUM, C.HIGH)  # CVSS 6.1; OSV match, High detection
-    assert "3.5.0" in f.remediation and "CWE-79" in f.refs
+    assert (f.severity, f.confidence) == (S.MEDIUM, C.HIGH)  # CVSS 6.9; OSV match, High detection
+    # Fixed versions come only from the npm entry, not jquery-rails 4.4.0 or debugbar 1.19.0.
+    assert "(3.5.0 or later)" in f.remediation
+    assert "4.4.0" not in f.remediation and "1.19.0" not in f.remediation
+    assert "CWE-79" in f.refs
+    assert any("CVSS 6.9" in e.value for e in f.evidence)  # live vector, incl. temporal "E:H"
     sent = [json.loads(c.request.content) for c in route.calls]
     assert all(set(b) == {"package", "version"} for b in sent)  # names + versions only
     assert "shop.test" not in json.dumps(sent)
@@ -94,6 +98,9 @@ async def test_nvd_ranges_and_platform_certainty(tmp_path: Path) -> None:
     assert cve.title.startswith("nginx 1.18.0")
     assert (cve.severity, cve.confidence) == (S.HIGH, C.MEDIUM)  # 7.7; CPE match is Medium
     assert found["VULN-CVE-0000-00002-nginx"].confidence is C.LOW  # needs a specific OS
+    assert any("CVSS 7.7" in e.value for e in cve.evidence)  # NVD Primary, not CNA's 9.4
+    v2 = found["VULN-CVE-0000-00003-nginx"]
+    assert v2.severity is S.HIGH  # CVSS v2 9.3: v2 has no Critical band
     assert not any("1.25.3" in f.title for f in found.values())
 
 

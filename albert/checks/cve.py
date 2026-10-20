@@ -121,6 +121,12 @@ def nvd_certainty(version: str, advisory: dict[str, Any]) -> Confidence | None:
 # --- findings -----------------------------------------------------------------------------
 
 
+def _v2_label(score: float | None) -> str:
+    if score is None:
+        return "MEDIUM"
+    return "HIGH" if score >= 7.0 else "MEDIUM" if score >= 4.0 else "LOW"
+
+
 def _slug(advisory_id: str) -> str:
     return re.sub(r"[^A-Za-z0-9.-]", "_", advisory_id)
 
@@ -132,7 +138,10 @@ def _finding(lk: Lookup, adv: dict[str, Any], certainty: Confidence) -> Finding:
     score = adv.get("cvss_score")
     if score is None:
         score = cvss3_base_score(adv.get("cvss_vector"))
-    severity = severity_from_score(score, adv.get("severity_label"))
+    if adv.get("cvss_version") == "2.0":  # v2 has no Critical band: use its own rating
+        severity = severity_from_score(None, adv.get("severity_label") or _v2_label(score))
+    else:
+        severity = severity_from_score(score, adv.get("severity_label"))
     fixed = adv.get("fixed", [])
     fix = (
         f"Upgrade {d.name} to a fixed version ({', '.join(fixed[:3])} or later)."

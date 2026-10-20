@@ -27,7 +27,7 @@ CveMode = Literal["off", "cache", "online"]
 OSV_QUERY = "https://api.osv.dev/v1/query"
 NVD_CVES = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 FRESH_FOR = timedelta(days=7)
-SCHEMA = 1
+SCHEMA = 2  # bump when the cached form changes; older entries are re-fetched
 _LABEL = {"osv": "OSV.dev", "nvd": "NVD"}
 
 
@@ -95,11 +95,18 @@ def _is_fresh(entry: dict[str, Any]) -> bool:
 # --- parsing (network JSON -> compact cached form) ----------------------------------------
 
 
-def parse_osv(vuln: dict[str, Any]) -> dict[str, Any]:
-    """Compact form of one OSV advisory."""
+def parse_osv(vuln: dict[str, Any], ecosystem: str, name: str) -> dict[str, Any]:
+    """Compact form of one OSV advisory. Fixed versions come only from the queried package's
+    entry: one advisory often lists other ecosystems (NuGet, RubyGems, Packagist, ...)."""
+    mine = [
+        a
+        for a in vuln.get("affected", [])
+        if (a.get("package") or {}).get("ecosystem", "").lower() == ecosystem.lower()
+        and (a.get("package") or {}).get("name", "") == name
+    ]
     fixed = [
         e["fixed"]
-        for a in vuln.get("affected", [])
+        for a in mine
         for r in a.get("ranges", [])
         for e in r.get("events", [])
         if "fixed" in e
@@ -147,12 +154,19 @@ def parse_nvd(item: dict[str, Any], vendor: str, product: str) -> dict[str, Any]
     if not matches:
         return None
     metrics = cve.get("metrics", {})
-    score = label = vector = None
-    for key in ("cvssMetricV31", "cvssMetricV30", "cvssMetricV40", "cvssMetricV2"):
-        if metrics.get(key):
-            data = metrics[key][0].get("cvssData", {})
-            score, vector = data.get("baseScore"), data.get("vectorString")
-            label = data.get("baseSeverity") or metrics[key][0].get("baseSeverity")
+    score = label = vector = version = None
+    for key, ver in (
+        ("cvssMetricV31", "3.1"),
+        ("cvssMetricV30", "3.0"),
+        ("cvssMetricV40", "4.0"),
+        ("cvssMetricV2", "2.0"),
+    ):
+        if entries := metrics.get(key):
+            # NVD's own assessment is "Primary"; vendor (CNA) scores are "Secondary".
+            entry = next((e for e in entries if e.get("type") == "Primary"), entries[0])
+            data = entry.get("cvssData", {})
+            score, vector, version = data.get("baseScore"), data.get("vectorString"), ver
+            label = data.get("baseSeverity") or entry.get("baseSeverity")
             break
     desc = next((d["value"] for d in cve.get("descriptions", []) if d.get("lang") == "en"), "")
     cwes = [
@@ -166,6 +180,7 @@ def parse_nvd(item: dict[str, Any], vendor: str, product: str) -> dict[str, Any]
         "aliases": [],
         "summary": desc[:300],
         "cvss_score": score,
+        "cvss_version": version,
         "cvss_vector": vector,
         "severity_label": label,
         "cwes": list(dict.fromkeys(cwes)),
@@ -182,7 +197,7 @@ async def _fetch_osv(client: IntelClient, name: str, version: str) -> list[dict[
     out: list[dict[str, Any]] = []
     for _ in range(10):  # page cap
         data = await client.post_json(OSV_QUERY, payload)
-        out += [parse_osv(v) for v in data.get("vulns", [])]
+        out += [parse_osv(v, "npm", name) for v in data.get("vulns", [])]
         if not (token := data.get("next_page_token")):
             break
         payload["page_token"] = token
