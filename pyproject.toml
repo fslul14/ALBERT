@@ -17,7 +17,7 @@ dependencies = [
     "sslyze>=6.0",
     "dnspython>=2.6",
     "PyYAML>=6.0",
-    "publicsuffixlist>=1.0",  # registrable-domain checks; bundled list, no runtime fetch
+    "publicsuffixlist==1.1.0.20261018",  # registrable-domain checks; bundled list, no runtime fetch
 ]
 
 [project.optional-dependencies]

@@ -175,6 +175,27 @@ class CollectedResponse:
         """Served over HTTPS."""
         return urlsplit(self.url).scheme == "https"
 
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-ready form (used for crawl resume state, not reports)."""
+        return {
+            "url": self.url,
+            "status": self.status,
+            "headers": [list(h) for h in self.headers],
+            "http_version": self.http_version,
+            "text": self.text,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> CollectedResponse:
+        """Inverse of ``to_dict``."""
+        return cls(
+            d["url"],
+            int(d["status"]),
+            tuple((str(k), str(v)) for k, v in d["headers"]),
+            d.get("http_version", "HTTP/1.1"),
+            d.get("text", ""),
+        )
+
 
 @dataclass(frozen=True)
 class Target:

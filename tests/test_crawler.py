@@ -1,0 +1,245 @@
+"""Crawler tests against mocked sites. No live hosts."""
+
+import json
+from pathlib import Path
+
+import httpx
+import pytest
+import respx
+
+from albert.cli import main
+from albert.core.crawler import (
+    Crawler,
+    CrawlLimits,
+    dedup_key,
+    extract_links,
+    normalize_url,
+    sitemap_locs,
+)
+from albert.core.http_client import ClientLimits
+from albert.core.models import Target
+from albert.core.scope import ScopePolicy
+
+BASE = "https://site.test"
+FAST = ClientLimits(rate=0, concurrency=2)
+
+
+def page(*links: str, status: int = 200) -> httpx.Response:
+    body = "<html><body>" + "".join(f'<a href="{u}">x</a>' for u in links) + "</body></html>"
+    return httpx.Response(status, headers={"Content-Type": "text/html"}, text=body)
+
+
+def site(pages: dict[str, httpx.Response], robots: str = "") -> dict[str, respx.Route]:
+    """Mock a site: path -> response; robots.txt optional; everything else 404."""
+    if robots:
+        respx.get(f"{BASE}/robots.txt").mock(
+            return_value=httpx.Response(200, headers={"Content-Type": "text/plain"}, text=robots)
+        )
+    routes = {path: respx.get(BASE + path).mock(return_value=resp) for path, resp in pages.items()}
+    respx.route(host="site.test").mock(return_value=httpx.Response(404))
+    return routes
+
+
+def crawler(limits: CrawlLimits | None = None, **kw: object) -> Crawler:
+    policy = ScopePolicy.for_target(Target(f"{BASE}/", "scan", authorized_by="self"))
+    return Crawler(policy, f"{BASE}/", FAST, limits or CrawlLimits(), **kw)  # type: ignore[arg-type]
+
+
+# --- pure helpers -------------------------------------------------------------------------
+
+
+def test_normalize_and_dedup_key() -> None:
+    assert normalize_url("HTTPS://Site.Test:443/a?b=2&a=1#frag") == "https://site.test/a?a=1&b=2"
+    assert normalize_url("http://site.test:8080") == "http://site.test:8080/"
+    assert normalize_url("mailto:x@y") is None
+    variants = ["https://site.test/a", "https://site.test/a/", "https://site.test/a#top"]
+    assert len({dedup_key(v) for v in variants}) == 1
+
+
+def test_extract_links_and_sitemap() -> None:
+    html = (
+        '<base href="/docs/"><a href="p1">x</a><a href="javascript:void(0)">y</a><iframe src="/f">'
+    )
+    assert extract_links("https://site.test/", html) == [
+        "https://site.test/docs/p1",
+        "https://site.test/f",
+    ]
+    xml = "<urlset><url><loc> https://site.test/a?x=1&amp;y=2 </loc></url></urlset>"
+    assert sitemap_locs(xml) == ["https://site.test/a?x=1&y=2"]
+
+
+# --- crawl behavior -----------------------------------------------------------------------
+
+
+@respx.mock
+async def test_dedup_fetches_each_page_once() -> None:
+    routes = site(
+        {
+            "/": page("/a", "/a/", "/a#x", "/q?b=2&a=1", "/q?a=1&b=2", "/"),
+            "/a": page("/"),
+            "/q": page(),
+        }
+    )
+    result = await crawler().run()
+    assert routes["/a"].call_count == 1 and routes["/q"].call_count == 1
+    assert routes["/"].call_count == 1
+    assert sorted(result.pages) == sorted([f"{BASE}/", f"{BASE}/a", f"{BASE}/q?a=1&b=2"])
+
+
+@respx.mock
+async def test_robots_disallow_respected() -> None:
+    routes = site(
+        {"/": page("/public", "/private/x"), "/public": page(), "/private/x": page()},
+        robots="User-agent: *\nDisallow: /private\n",
+    )
+    result = await crawler().run()
+    assert routes["/public"].called
+    assert not routes["/private/x"].called
+    assert any("disallowed by robots.txt" in s for s in result.skipped)
+
+
+@respx.mock
+async def test_robots_5xx_means_disallow_all() -> None:
+    respx.get(f"{BASE}/robots.txt").mock(return_value=httpx.Response(503))
+    routes = site({"/": page()})
+    result = await crawler().run()
+    assert not routes["/"].called
+    assert any("disallow-all" in n for n in result.notes)
+
+
+@respx.mock
+async def test_depth_cap() -> None:
+    routes = site({"/": page("/d1"), "/d1": page("/d2"), "/d2": page("/d3"), "/d3": page()})
+    await crawler(CrawlLimits(max_depth=2)).run()
+    assert routes["/d2"].called and not routes["/d3"].called
+
+
+@respx.mock
+async def test_page_cap() -> None:
+    links = [f"/p{i}" for i in range(10)]
+    routes = site({"/": page(*links), **{p: page() for p in links}})
+    result = await crawler(CrawlLimits(max_pages=3)).run()
+    fetched = sum(r.call_count for r in routes.values())
+    assert fetched == 3 and len(result.pages) == 3
+    assert any("page cap of 3" in n for n in result.notes)
+
+
+@respx.mock
+async def test_session_id_trap() -> None:
+    routes = site({"/": page("/cart?PHPSESSID=abc123", "/ok;jsessionid=XYZ"), "/cart": page()})
+    result = await crawler().run()
+    assert not routes["/cart"].called
+    assert sum("session id" in s for s in result.skipped) == 2
+
+
+@respx.mock
+async def test_calendar_trap_stops_descending() -> None:
+    # Each month links to the next: an infinite calendar.
+    pages = {f"/events?month={m}": page(f"/events?month={m + 1}") for m in range(1, 40)}
+    respx.get(f"{BASE}/").mock(return_value=page("/events?month=1"))
+    routes = {
+        m: respx.get(f"{BASE}/events", params={"month": str(m)}).mock(
+            return_value=pages[f"/events?month={m}"]
+        )
+        for m in range(1, 40)
+    }
+    respx.route(host="site.test").mock(return_value=httpx.Response(404))
+    result = await crawler(CrawlLimits(max_depth=50, calendar_threshold=5)).run()
+    fetched = [m for m, r in routes.items() if r.called]
+    assert fetched == [1, 2, 3, 4, 5]
+    assert any("calendar-style" in s for s in result.skipped)
+
+
+@respx.mock
+async def test_off_host_links_never_followed() -> None:
+    other = respx.route(host="other.test").mock(return_value=page())
+    sub = respx.route(host="www.site.test").mock(return_value=page())
+    site({"/": page("https://other.test/x", "https://www.site.test/", "//other.test/y")})
+    result = await crawler().run()
+    assert not other.called and not sub.called
+    assert sum("off-host" in s for s in result.skipped) == 3
+
+
+@respx.mock
+async def test_sitemap_seeds() -> None:
+    respx.get(f"{BASE}/sitemap.xml").mock(
+        return_value=httpx.Response(
+            200,
+            headers={"Content-Type": "application/xml"},
+            text=f"<urlset><url><loc>{BASE}/hidden</loc></url>"
+            "<url><loc>https://other.test/z</loc></url></urlset>",
+        )
+    )
+    routes = site({"/": page(), "/hidden": page()})
+    await crawler().run()
+    assert routes["/hidden"].called
+
+
+@respx.mock
+async def test_rate_limit_block_recorded_and_stops() -> None:
+    links = [f"/p{i}" for i in range(6)]
+    limited = httpx.Response(429, headers={"Retry-After": "0"})
+    site({"/": page(*links), **{p: limited for p in links}})
+    result = await crawler(CrawlLimits(max_blocks=2, backoff=0)).run()
+    assert len(result.blocked) == 2
+    assert any("blocking/rate-limiting" in n for n in result.notes)
+
+
+@respx.mock
+async def test_resume_skips_completed_pages(tmp_path: Path) -> None:
+    state = tmp_path / "state.jsonl"
+    respx.get(f"{BASE}/").mock(return_value=page("/a", "/b"))
+    a = respx.get(f"{BASE}/a").mock(return_value=page())
+    b = respx.get(f"{BASE}/b").mock(side_effect=RuntimeError("power cut"))
+    respx.route(host="site.test").mock(return_value=httpx.Response(404))
+    with pytest.raises(RuntimeError):
+        await crawler(state_path=state).run()
+    assert state.exists()
+    b.mock(return_value=page())
+    root_calls, a_calls = respx.get(f"{BASE}/").calls.call_count, a.call_count
+    result = await crawler(state_path=state, resume=True).run()
+    assert respx.get(f"{BASE}/").calls.call_count == root_calls  # not re-fetched
+    assert a.call_count == a_calls
+    assert b.called
+    assert result.resumed == 2
+    assert sorted(result.pages) == sorted([f"{BASE}/", f"{BASE}/a", f"{BASE}/b"])
+    assert not state.exists()  # clean finish removes state
+
+
+# --- scan wiring --------------------------------------------------------------------------
+
+
+@respx.mock
+def test_scan_crawls_and_groups_findings(tmp_path: Path) -> None:
+    scope = tmp_path / "scope.toml"
+    scope.write_text(
+        '[[target]]\nhost = "site.test"\nauthorized_by = "self"\ndate = "2026-10-20"\n',
+        encoding="utf-8",
+    )
+    site({"/": page("/a", "/b"), "/a": page(), "/b": page()})
+    out = tmp_path / "reports"
+    assert main(["scan", f"{BASE}/", "--scope", str(scope), "--out", str(out), "--rate", "0"]) == 0
+    data = json.loads(next(out.glob("site.test_*.json")).read_text(encoding="utf-8"))
+    csp = next(f for f in data["findings"] if f["id"] == "HDR-CSP-MISSING")
+    assert sorted(csp["urls"]) == [f"{BASE}/", f"{BASE}/a", f"{BASE}/b"]  # one grouped finding
+    assert data["target"]["mode"] == "scan" and data["target"]["authorized_by"] == "self"
+
+
+def test_scan_without_entry_asks_and_records(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scope = tmp_path / "scope.toml"
+    answers = iter([""])  # blank: cancel
+    monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
+    assert main(["scan", f"{BASE}/", "--scope", str(scope), "--out", str(tmp_path)]) == 2
+    assert not scope.exists()
+
+    with respx.mock:
+        site({"/": page()})
+        answers = iter(["friend, written OK 2026-10-19"])
+        assert (
+            main(["scan", f"{BASE}/", "--scope", str(scope), "--out", str(tmp_path), "--rate", "0"])
+            == 0
+        )
+    text = scope.read_text(encoding="utf-8")
+    assert 'host = "site.test"' in text and "allow_active = false" in text

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import tomllib
 from dataclasses import dataclass
 from datetime import date
@@ -133,3 +134,25 @@ def load_scope(path: Path = DEFAULT_SCOPE_PATH) -> Scope:
     except OSError as e:
         raise ScopeError(f"{path}: cannot read: {e.strerror}") from None
     return parse_scope(text, str(path))
+
+
+def append_scope_entry(path: Path, host: str, authorized_by: str, on: date) -> ScopeEntry:
+    """Append a validated [[target]] entry (allow_active=false) and return it.
+
+    The whole resulting file is validated before anything is written.
+    """
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    block = (
+        "\n[[target]]\n"
+        f"host = {json.dumps(normalize_host(host))}\n"
+        f"authorized_by = {json.dumps(authorized_by.strip())}\n"
+        f'date = "{on.isoformat()}"\n'
+        "allow_active = false\n"
+    )
+    text = existing.rstrip("\n") + "\n" + block if existing.strip() else block.lstrip("\n")
+    scope = parse_scope(text, str(path))  # raises ScopeError (blank, duplicate, ...) first
+    path.write_text(text, encoding="utf-8", newline="\n")
+    entry = scope.entry_for(host)
+    if entry is None:  # unreachable: the entry was just validated
+        raise ScopeError(f"{path}: failed to record {host}")
+    return entry
