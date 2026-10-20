@@ -41,6 +41,16 @@ class FetchChain:
     note: str | None = None  # why the chain stopped early, if it did
 
 
+@dataclass(frozen=True)
+class RawResponse:
+    """A single response with its decoded body bytes (for the browser to replay)."""
+
+    url: str
+    status: int
+    headers: tuple[tuple[str, str], ...]
+    body: bytes
+
+
 def _collect(r: httpx.Response) -> CollectedResponse:
     ctype = r.headers.get("content-type", "").lower()
     text = r.text[:MAX_TEXT_CHARS] if _TEXTUAL.match(ctype) else ""
@@ -156,6 +166,15 @@ class HttpClient:
     async def head(self, url: str) -> httpx.Response:
         """HEAD ``url``."""
         return await self._client.head(url)
+
+    async def fetch_one(self, url: str, method: str = "GET") -> RawResponse:
+        """One request, redirects NOT followed (the caller, e.g. the browser, follows them and
+        each hop comes back through here). Body is decoded bytes. Raises FetchError."""
+        try:
+            r = await self._client.request(method, url, follow_redirects=False)
+        except httpx.HTTPError as e:
+            raise FetchError(f"{url}: {type(e).__name__}: {e}") from None
+        return RawResponse(str(r.url), r.status_code, tuple(r.headers.multi_items()), r.content)
 
     async def fetch_chain(self, url: str) -> FetchChain:
         """GET ``url``, following redirects here so every hop is kept for checks.

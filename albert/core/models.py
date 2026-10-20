@@ -239,6 +239,29 @@ class TLSObservation:
 
 
 @dataclass(frozen=True)
+class SubRequest:
+    """One request a rendered page attempted."""
+
+    url: str
+    resource_type: str  # "document", "script", "stylesheet", "image", "xhr", "fetch", ...
+    method: str = "GET"
+    outcome: str = "fetched"  # "fetched" | "blocked" (scope/method/cap) | "failed"
+    status: int | None = None
+    note: str = ""
+
+
+@dataclass(frozen=True)
+class RenderedPage:
+    """What a headless render captured: final DOM, sub-requests, final URL."""
+
+    url: str
+    final_url: str
+    dom: str
+    requests: tuple[SubRequest, ...] = ()
+    error: str | None = None
+
+
+@dataclass(frozen=True)
 class Target:
     """What is being scanned, and under whose authorization."""
 

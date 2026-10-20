@@ -11,6 +11,8 @@ from collections.abc import Callable, Iterable
 from typing import NamedTuple
 from urllib.parse import urlsplit
 
+from selectolax.lexbor import LexborHTMLParser
+
 from albert.core.models import (
     CollectedResponse,
     Confidence,
@@ -40,6 +42,15 @@ _SPECS: dict[str, _Spec] = {
         C.HIGH,
         "No CSP to limit the impact of XSS or injected third-party content.",
         "Send a Content-Security-Policy; start with a nonce-based strict policy.",
+        ("CWE-693", A05),
+    ),
+    "HDR-CSP-META-ONLY": _Spec(
+        "Content-Security-Policy set only via <meta>",
+        S.LOW,
+        C.HIGH,
+        "Script/style rules apply, but frame-ancestors, report-uri and sandbox are ignored in "
+        "<meta>, and the policy only covers content parsed after the tag.",
+        "Send the policy as a Content-Security-Policy HTTP header.",
         ("CWE-693", A05),
     ),
     "HDR-CSP-REPORT-ONLY": _Spec(
@@ -563,23 +574,43 @@ def _wildcards(srcs: list[str]) -> list[str]:
     return [s for s in srcs if s in _WILDCARD_SOURCES]
 
 
+def meta_csp(html: str) -> list[str]:
+    """CSP policies delivered in <meta http-equiv="Content-Security-Policy"> tags."""
+    if "http-equiv" not in html.lower():
+        return []
+    tree = LexborHTMLParser(html)
+    return [
+        node.attributes.get("content") or ""
+        for node in tree.css("meta[http-equiv]")
+        if (node.attributes.get("http-equiv") or "").strip().lower() == "content-security-policy"
+    ]
+
+
 def check_csp(resp: CollectedResponse) -> list[Finding]:
-    """CSP presence and quality on HTML documents."""
+    """CSP presence and quality on HTML documents (header, else <meta>)."""
     if not resp.is_document:
         return []
     raw = resp.header_all("content-security-policy")
-    if not raw:
-        ro = resp.header("content-security-policy-report-only")
-        if ro is not None:
-            return [
-                _hit(resp, "HDR-CSP-REPORT-ONLY", _ev("Content-Security-Policy-Report-Only", ro))
-            ]
-        return [_hit(resp, "HDR-CSP-MISSING", _ev("Content-Security-Policy", None))]
+    if raw:
+        policies = _csp_policies(resp)
+        return csp_quality(resp, policies, _ev("Content-Security-Policy", "; ".join(raw)))
+    metas = [m for m in meta_csp(resp.text) if m.strip()] if resp.text else []
+    if metas:
+        ev = _ev("<meta> Content-Security-Policy", "; ".join(metas))
+        policies = [p for m in metas for p in parse_csp(m)]
+        return [_hit(resp, "HDR-CSP-META-ONLY", ev), *csp_quality(resp, policies, ev)]
+    ro = resp.header("content-security-policy-report-only")
+    if ro is not None:
+        return [_hit(resp, "HDR-CSP-REPORT-ONLY", _ev("Content-Security-Policy-Report-Only", ro))]
+    return [_hit(resp, "HDR-CSP-MISSING", _ev("Content-Security-Policy", None))]
 
-    ev = _ev("Content-Security-Policy", "; ".join(raw))
-    policies = _csp_policies(resp)
+
+def csp_quality(
+    resp: CollectedResponse, policies: list[dict[str, list[str]]], ev: Evidence
+) -> list[Finding]:
+    """Weaknesses in the enforced policies (all are enforced, so a weakness must be in every
+    script-restricting policy to count)."""
     out: list[Finding] = []
-    # Multiple policies are all enforced: a weakness counts only if every script policy has it.
     scripts = [s for p in policies if (s := _script_sources(p)) is not None]
     if not scripts:
         out.append(_hit(resp, "HDR-CSP-NO-SCRIPT-POLICY", ev))

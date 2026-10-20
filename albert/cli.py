@@ -10,6 +10,7 @@ from pathlib import Path
 
 from albert import __version__
 from albert.config import DEFAULT_SCOPE_PATH, Scope, ScopeError, append_scope_entry, load_scope
+from albert.core.browser import RenderLimits
 from albert.core.crawler import CrawlLimits, state_path_for
 from albert.core.models import ScanResult, Target
 from albert.core.report import write_report
@@ -44,6 +45,8 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--max-depth", type=int, default=CrawlLimits.max_depth)
     scan.add_argument("--rate", type=float, default=2.0, help="requests/second to the host")
     scan.add_argument("--resume", action="store_true", help="continue an interrupted scan")
+    scan.add_argument("--render", action="store_true", help="render pages in headless Chromium")
+    scan.add_argument("--render-max", type=int, default=RenderLimits.max_pages)
     return parser
 
 
@@ -111,6 +114,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 args.rate,
                 state_path=state_path_for(args.out, target.host),
                 resume=args.resume,
+                render=RenderLimits(max_pages=args.render_max) if args.render else None,
             )
         )
         return _finish(result, args)
