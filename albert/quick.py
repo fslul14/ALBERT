@@ -1,7 +1,7 @@
 """`albert quick`: single-page, public-equivalent check of any URL (no scope entry).
 
 Collects: the page (with its redirect hops), /.well-known/security.txt, the TLS certificate
-and protocol/cipher support, and (when its step lands) DNS/email records. Same-site
+and protocol/cipher support, and DNS/email records (SPF, DMARC, MTA-STS, ...). Same-site
 redirects (apex <-> www, http -> https) are followed via the narrow quick-only rule in
 ScopePolicy.
 """
@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from urllib.parse import urlsplit
 
+from albert.checks.dns_email import run_dns_email_checks
 from albert.checks.security_txt import WELL_KNOWN_PATH
 from albert.checks.tls import check_downgrade, check_http_redirect, check_tls
+from albert.core.dns_client import collect_dns, fetch_mta_sts_policy
 from albert.core.engine import run_checks
 from albert.core.http_client import (
     BudgetExceededError,
@@ -21,7 +23,7 @@ from albert.core.http_client import (
     HttpClient,
 )
 from albert.core.models import CollectedResponse, ScanResult, Target
-from albert.core.scope import OutOfScopeError, ScopePolicy
+from albert.core.scope import OutOfScopeError, ScopePolicy, registrable_domain
 from albert.core.tls_client import TLSLimits, collect_tls
 
 MAX_REQUESTS = 12  # whole quick run: page + redirects + security.txt
@@ -116,9 +118,18 @@ async def run_tls_step(
     result.checks_run.append("tls")
 
 
-def _dns_email(result: ScanResult) -> None:
-    """Stub until step 17 (DNS/email module)."""
-    result.notes.append("not covered yet: DNS/email records (arrive with the DNS module)")
+async def run_dns_step(result: ScanResult, host: str) -> None:
+    """DNS/email posture for the target's registrable domain (its own published records)."""
+    domain = registrable_domain(host)
+    if domain is None:
+        result.notes.append(f"DNS/email skipped: {host} has no registrable domain (IP/local)")
+        return
+    snap = await collect_dns(domain, host, fetch_policy=fetch_mta_sts_policy)
+    result.findings += run_dns_email_checks([snap])
+    result.notes += list(snap.notes)
+    if snap.mta_sts_policy is not None:
+        result.pages.append(snap.mta_sts_policy.url)
+    result.checks_run.append("dns_email")
 
 
 async def run_quick(target: Target) -> ScanResult:
@@ -145,7 +156,7 @@ async def run_quick(target: Target) -> ScanResult:
 
     tls_url = hops[-1].url if hops else target.url
     await run_tls_step(result, policy, tls_url, hops, http_budget=budget)
-    _dns_email(result)
+    await run_dns_step(result, target.host)
     result.finish()
     return result
 

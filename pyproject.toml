@@ -15,7 +15,7 @@ dependencies = [
     "playwright==1.64.0",  # headless render; browser has no network of its own (core/browser.py)
     "cryptography>=42",
     "sslyze==6.3.1",  # non-intrusive TLS enumeration only (see core/tls_client.py)
-    "dnspython>=2.6",
+    "dnspython==2.9.0",  # scope-checked DNS (core/dns_client.py)
     "PyYAML>=6.0",
     "publicsuffixlist==1.1.0.20261018",  # registrable-domain checks; bundled list, no runtime fetch
 ]
@@ -35,7 +35,11 @@ albert = ["rules/*.yaml", "data/*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-markers = ["real_tls: use the real TLS collector (local 127.0.0.1 server only)"]
+markers = [
+    "real_tls: use the real TLS collector (local 127.0.0.1 server only)",
+    "real_dns: use the real DNS step (with an injected fake resolver)",
+    "dns_guard_test: the one test allowed to trip the DNS send guard (it checks the guard)",
+]
 filterwarnings = ["ignore:Parsed a serial number:cryptography.utils.CryptographyDeprecationWarning"]
 
 [tool.ruff]

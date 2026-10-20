@@ -17,7 +17,7 @@ from albert.core.http_client import ClientLimits, HttpClient
 from albert.core.models import CollectedResponse, RenderedPage, ScanResult, Target
 from albert.core.scope import ScopePolicy
 from albert.core.vulndb import CveMode, default_cache_dir, lookup_all
-from albert.quick import run_tls_step
+from albert.quick import run_dns_step, run_tls_step
 
 INSTALL_HINT = r".venv\Scripts\playwright install chromium"
 
@@ -32,6 +32,7 @@ async def run_scan(
     render: RenderLimits | None = None,
     cve_mode: CveMode = "cache",
     cache_dir: Path | None = None,
+    full: bool = False,
 ) -> ScanResult:
     """Crawl the target (scope-checked, same host), run page checks, optionally render
     pages headlessly (opt-in), then inspect TLS."""
@@ -83,6 +84,8 @@ async def run_scan(
             "response(s) and inline scripts; .map files are never fetched"
         )
     await run_tls_step(result, policy, target.url, crawl.responses[:1], http_budget=3)
+    if full:
+        await run_dns_step(result, target.host)
     result.finish()
     return result
 

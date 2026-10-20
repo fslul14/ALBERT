@@ -290,6 +290,38 @@ class TechDetection:
 
 
 @dataclass(frozen=True)
+class DnsAnswer:
+    """One DNS lookup result. ``status``: ok | nxdomain | noanswer | error."""
+
+    name: str
+    rtype: str
+    status: str
+    values: tuple[str, ...] = ()
+    error: str = ""
+
+
+@dataclass(frozen=True)
+class DnsSnapshot:
+    """The target domain's published DNS records, as collected (checks are pure over it)."""
+
+    domain: str  # registrable domain (email posture lives here)
+    host: str  # the scanned host
+    answers: tuple[DnsAnswer, ...] = ()
+    mta_sts_policy: CollectedResponse | None = None  # https://mta-sts.<domain>/.well-known/...
+    notes: tuple[str, ...] = ()
+
+    def get(self, name: str, rtype: str) -> DnsAnswer | None:
+        """The answer for (name, rtype), if it was queried."""
+        key = (name.lower().rstrip("."), rtype.upper())
+        return next((a for a in self.answers if (a.name, a.rtype) == key), None)
+
+    def values(self, name: str, rtype: str) -> tuple[str, ...]:
+        """Values for (name, rtype), empty if missing or not queried."""
+        a = self.get(name, rtype)
+        return a.values if a and a.status == "ok" else ()
+
+
+@dataclass(frozen=True)
 class Target:
     """What is being scanned, and under whose authorization."""
 

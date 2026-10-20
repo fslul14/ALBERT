@@ -23,7 +23,13 @@ NETWORK_MODULES = {
 }
 NETWORK_CALLS = {"open_connection", "create_connection", "getaddrinfo", "sock_connect"}
 # Grows as egress modules land (browser.py, dns_client.py, TLS); each must call scope first.
-ALLOWED = {"core/http_client.py", "core/tls_client.py", "core/browser.py", "core/intel.py"}
+ALLOWED = {
+    "core/http_client.py",
+    "core/tls_client.py",
+    "core/browser.py",
+    "core/intel.py",
+    "core/dns_client.py",
+}
 
 
 def _modules() -> list[tuple[str, ast.Module]]:
@@ -117,3 +123,12 @@ def test_intel_transport_checks_policy_first() -> None:
         for k in c.keywords
         if k.arg == "transport"
     )
+
+
+def test_dns_query_checks_policy_first() -> None:
+    tree = dict(_modules())["core/dns_client.py"]
+    (query,) = [
+        n for n in ast.walk(tree) if isinstance(n, ast.AsyncFunctionDef) and n.name == "query"
+    ]
+    calls = [n for n in ast.walk(query.body[0]) if isinstance(n, ast.Call)]
+    assert any(isinstance(c.func, ast.Attribute) and c.func.attr == "check" for c in calls)

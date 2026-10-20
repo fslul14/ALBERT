@@ -164,6 +164,16 @@ async def test_coverage_stubs_noted() -> None:
     respx.get("https://shop.co.uk/").mock(return_value=httpx.Response(200, headers=HTML))
     _not_found()
     result = await run_quick(Target("https://shop.co.uk/", "quick"))
-    assert result.checks_run == ["headers", "cookies", "cors", "disclosure", "security_txt", "tls"]
-    assert not any("TLS certificate" in n for n in result.notes)  # TLS is covered now
-    assert any("DNS/email" in n for n in result.notes)
+    assert result.checks_run == [
+        "headers",
+        "cookies",
+        "cors",
+        "disclosure",
+        "security_txt",
+        "tls",
+        "dns_email",
+    ]
+    assert not any("not covered yet" in n for n in result.notes)  # every quick collector exists
+    assert not any(
+        f.id.startswith("DNS-") for f in result.findings
+    )  # empty snapshot: nothing claimed

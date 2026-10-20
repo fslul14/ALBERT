@@ -72,6 +72,7 @@ class ScopePolicy:
     hosts: frozenset[str]
     extra_ports: frozenset[tuple[str, int]] = frozenset()
     mode: ScanMode = "scan"  # strictest by default; only "quick" may widen (same-site redirects)
+    paths: frozenset[str] = frozenset()  # non-empty: ONLY these exact paths, https only
 
     @classmethod
     def for_target(cls, target: Target) -> ScopePolicy:
@@ -84,6 +85,13 @@ class ScopePolicy:
         port = urlsplit(target.url).port
         extra = {(host, port)} if port is not None and port not in DEFAULT_PORTS else set()
         return cls(frozenset({host}), frozenset(extra), target.mode)
+
+    @classmethod
+    def for_mta_sts(cls, domain: str) -> ScopePolicy:
+        """Exactly one file: https://mta-sts.<domain>/.well-known/mta-sts.txt (RFC 8461), the
+        domain's own published policy. Nothing else on that host is reachable."""
+        host = normalize_host(f"mta-sts.{domain}")
+        return cls(frozenset({host}), paths=frozenset({"/.well-known/mta-sts.txt"}))
 
     def with_same_site_redirect(self, from_url: str, to_url: str) -> ScopePolicy:
         """Quick mode only: a new policy that also allows ``to_url``'s host.
@@ -135,6 +143,8 @@ class ScopePolicy:
             raise OutOfScopeError(f"scheme {parts.scheme!r} refused")
         if parts.username or parts.password:
             raise OutOfScopeError("URLs with embedded credentials are refused")
+        if self.paths and (parts.scheme != "https" or parts.path not in self.paths or parts.query):
+            raise OutOfScopeError(f"only {', '.join(sorted(self.paths))} over https is allowed")
         try:
             port = parts.port
         except ValueError:

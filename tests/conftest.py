@@ -4,11 +4,15 @@
   code that really opens sockets trips this).
 - quick/scan get a canned TLS observation unless a test is marked ``real_tls`` (those use a
   local TLS server on 127.0.0.1).
+- dnspython can't send a packet anywhere: its query functions raise, and any attempted send
+  fails the test afterwards (dnspython itself swallows the error). DNS tests inject a fake
+  resolver; quick/scan get an empty snapshot unless a test is marked ``real_dns``.
 """
 
 from __future__ import annotations
 
 import socket
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
@@ -56,3 +60,40 @@ def _fake_tls(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -
         return good_tls(policy.check_host(host, port), port)
 
     monkeypatch.setattr("albert.quick.collect_tls", fake)
+
+
+DNS_SEND_ATTEMPTS: list[str] = []  # every intercepted send (dnspython swallows the error)
+
+
+@pytest.fixture(autouse=True)
+def _no_live_dns_packets(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[None]:
+    import dns.asyncquery
+    import dns.query
+
+    DNS_SEND_ATTEMPTS.clear()
+
+    def refuse(*a: Any, **k: Any) -> Any:
+        DNS_SEND_ATTEMPTS.append(str(a[0].question[0]) if a and hasattr(a[0], "question") else "?")
+        raise AssertionError("test tried to send a real DNS query; inject a fake resolver")
+
+    for mod in (dns.asyncquery, dns.query):
+        for name in ("udp", "tcp", "udp_with_fallback", "https", "quic", "tls"):
+            monkeypatch.setattr(mod, name, refuse)
+    yield
+    # dnspython swallows the refusal, so fail loudly here: unmocked DNS fails the suite.
+    if DNS_SEND_ATTEMPTS and not request.node.get_closest_marker("dns_guard_test"):
+        pytest.fail(f"test attempted real DNS queries: {DNS_SEND_ATTEMPTS}")
+
+
+@pytest.fixture(autouse=True)
+def _fake_dns_step(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    if request.node.get_closest_marker("real_dns"):
+        return
+    from albert.core.models import DnsSnapshot
+
+    async def fake(domain: str, host: str, **kw: Any) -> DnsSnapshot:
+        return DnsSnapshot(domain, host, notes=("DNS not queried in tests",))
+
+    monkeypatch.setattr("albert.quick.collect_dns", fake)
