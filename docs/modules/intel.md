@@ -23,3 +23,14 @@ scanning one needs its own scope entry. Wayback URLs are reported, never fetched
 
 Severity: CT subdomains and Wayback URLs Info; domain on DBL/SURBL or MX IP on ZEN (SBL/XBL)
 Medium; MX on ZEN PBL (policy list) Low; Safe Browsing match High.
+
+## Open item (TODO)
+
+- **crt.sh success-path shape is unverified live.** During the step-19 live check (2026-10-20)
+  crt.sh returned `502 Bad Gateway` on every attempt (example.com and badssl.com, full and
+  `exclude=expired` queries), so only its error path was exercised. The parser
+  (`intel_sources._crt_sh`) is tested against fixtures modelled on the documented JSON format;
+  **wildcard (`*.`) / duplicate / uppercase name handling in `name_value` still needs one live
+  confirmation** once crt.sh recovers: a single `--full` lookup, or one request through
+  `IntelClient`, comparing the raw rows with the parsed subdomain list.
+- Verified live on the same date: Wayback CDX shape (and the `filter=statuscode:200` fix).
