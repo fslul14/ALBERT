@@ -1,0 +1,10 @@
+# Set-Cookie headers as served by a login response at https://www.shop.test/account/login
+# (values are dummies). One header per line.
+PHPSESSID=deadbeef0123; path=/
+cart_id=42; Path=/; Secure; HttpOnly; SameSite=Lax
+XSRF-TOKEN=abc; Path=/; Secure; SameSite=Strict
+remember_me=1; Domain=.shop.test; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=2592000
+tracker=xyz; SameSite=None
+__Host-auth=t; Domain=shop.test; Path=/; Secure; HttpOnly; SameSite=Strict
+__Secure-pref=dark; Path=/
+good_session=ok; Path=/; Secure; HttpOnly; SameSite=Strict

@@ -96,7 +96,7 @@ async def run_quick(target: Target) -> ScanResult:
     except (FetchError, OutOfScopeError) as e:
         result.errors.append(str(e))
         hops, budget = [], 0
-    run_checks(result, hops, ["headers"])
+    run_checks(result, hops, ["headers", "cookies"])
     result.pages = [h.url for h in hops]
 
     if hops and budget > 0:
