@@ -198,6 +198,47 @@ class CollectedResponse:
 
 
 @dataclass(frozen=True)
+class CertInfo:
+    """Parsed X.509 certificate facts (see core/certs.py)."""
+
+    subject: str
+    issuer: str
+    sans: tuple[str, ...]
+    not_before: datetime
+    not_after: datetime
+    signature_hash: str | None  # "sha256", "sha1", ...; None for Ed25519/Ed448
+    key_type: str  # "RSA", "EC", "DSA", "Ed25519", "Ed448"
+    key_bits: int
+    self_issued: bool
+    embedded_scts: int
+    sha256: str
+
+
+@dataclass(frozen=True)
+class TLSObservation:
+    """What the TLS collector saw for one host:port. Checks over it are pure."""
+
+    host: str
+    port: int = 443
+    error: str | None = None  # no TLS handshake possible at all
+    protocol: str | None = None  # negotiated by the stdlib handshake
+    cipher: str | None = None
+    verify_error: str | None = None  # OpenSSL verification message (system trust store)
+    verify_code: int | None = None
+    leaf: CertInfo | None = None
+    chain: tuple[CertInfo, ...] = ()  # as received (sslyze), leaf first
+    enumerated: bool = False  # sslyze protocol/cipher enumeration ran
+    enum_error: str | None = None
+    protocols: tuple[tuple[str, bool], ...] = ()  # ("TLSv1.0", accepted)
+    accepted_ciphers: tuple[tuple[str, str, bool], ...] = ()  # (protocol, name, forward_secret)
+
+    @property
+    def url(self) -> str:
+        """https URL for findings."""
+        return f"https://{self.host}/" if self.port == 443 else f"https://{self.host}:{self.port}/"
+
+
+@dataclass(frozen=True)
 class Target:
     """What is being scanned, and under whose authorization."""
 

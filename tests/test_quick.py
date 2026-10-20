@@ -118,6 +118,7 @@ async def test_apex_to_www_followed_and_scanned() -> None:
         "https://shop.co.uk/",
         "https://www.shop.co.uk/",
         "https://www.shop.co.uk/.well-known/security.txt",
+        "http://www.shop.co.uk/",  # plain-HTTP fetch for the HTTP->HTTPS redirect check
     ]
     assert any("same registrable domain" in n for n in result.notes)
     ids = {f.id for f in result.findings}
@@ -163,6 +164,6 @@ async def test_coverage_stubs_noted() -> None:
     respx.get("https://shop.co.uk/").mock(return_value=httpx.Response(200, headers=HTML))
     _not_found()
     result = await run_quick(Target("https://shop.co.uk/", "quick"))
-    assert result.checks_run == ["headers", "cookies", "disclosure", "security_txt"]
-    assert any("TLS certificate" in n for n in result.notes)
+    assert result.checks_run == ["headers", "cookies", "disclosure", "security_txt", "tls"]
+    assert not any("TLS certificate" in n for n in result.notes)  # TLS is covered now
     assert any("DNS/email" in n for n in result.notes)

@@ -23,7 +23,7 @@ NETWORK_MODULES = {
 }
 NETWORK_CALLS = {"open_connection", "create_connection", "getaddrinfo", "sock_connect"}
 # Grows as egress modules land (browser.py, dns_client.py, TLS); each must call scope first.
-ALLOWED = {"core/http_client.py"}
+ALLOWED = {"core/http_client.py", "core/tls_client.py"}
 
 
 def _modules() -> list[tuple[str, ast.Module]]:

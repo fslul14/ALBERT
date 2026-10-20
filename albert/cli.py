@@ -13,7 +13,7 @@ from albert.config import DEFAULT_SCOPE_PATH, Scope, ScopeError, append_scope_en
 from albert.core.crawler import CrawlLimits, state_path_for
 from albert.core.models import ScanResult, Target
 from albert.core.report import write_report
-from albert.quick import run_quick
+from albert.quick import run_quick, run_tls_only
 from albert.scan import run_scan
 
 
@@ -33,6 +33,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     quick = sub.add_parser("quick", help="single-page, public-equivalent check of any URL")
     _add_output_args(quick)
+    quick.add_argument(
+        "--tls-only", action="store_true", help="handshake + certificate inspection only, no HTTP"
+    )
 
     scan = sub.add_parser("scan", help="authorized full crawl (needs a scope.toml entry)")
     _add_output_args(scan)
@@ -71,7 +74,7 @@ def _finish(result: ScanResult, args: argparse.Namespace) -> int:
 def _cmd_quick(args: argparse.Namespace) -> int:
     try:
         target = Target(_target_url(args), "quick")
-        result = asyncio.run(run_quick(target))
+        result = asyncio.run(run_tls_only(target) if args.tls_only else run_quick(target))
         return _finish(result, args)
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)

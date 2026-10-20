@@ -1,8 +1,9 @@
 """`albert quick`: single-page, public-equivalent check of any URL (no scope entry).
 
-Collects: the page (with its redirect hops), /.well-known/security.txt, and, as their steps
-land, the TLS certificate and DNS/email records. Same-site redirects (apex <-> www,
-http -> https) are followed via the narrow quick-only rule in ScopePolicy.
+Collects: the page (with its redirect hops), /.well-known/security.txt, the TLS certificate
+and protocol/cipher support, and (when its step lands) DNS/email records. Same-site
+redirects (apex <-> www, http -> https) are followed via the narrow quick-only rule in
+ScopePolicy.
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from __future__ import annotations
 from urllib.parse import urlsplit
 
 from albert.checks.security_txt import WELL_KNOWN_PATH
+from albert.checks.tls import check_downgrade, check_http_redirect, check_tls
 from albert.core.engine import run_checks
 from albert.core.http_client import (
     BudgetExceededError,
@@ -20,6 +22,7 @@ from albert.core.http_client import (
 )
 from albert.core.models import CollectedResponse, ScanResult, Target
 from albert.core.scope import OutOfScopeError, ScopePolicy
+from albert.core.tls_client import TLSLimits, collect_tls
 
 MAX_REQUESTS = 12  # whole quick run: page + redirects + security.txt
 MAX_SITE_HOPS = 2  # cross-host same-site redirects followed
@@ -71,15 +74,46 @@ async def _collect_page(
 
 async def _collect_security_txt(
     final_url: str, policy: ScopePolicy, budget: int
-) -> list[CollectedResponse]:
+) -> tuple[list[CollectedResponse], int]:
     parts = urlsplit(final_url)
-    chain, _ = await _get(policy, f"{parts.scheme}://{parts.netloc}{WELL_KNOWN_PATH}", budget)
-    return chain.hops
+    chain, used = await _get(policy, f"{parts.scheme}://{parts.netloc}{WELL_KNOWN_PATH}", budget)
+    return chain.hops, used
 
 
-def _tls_cert(result: ScanResult) -> None:
-    """Stub until step 10 (TLS/cert module)."""
-    result.notes.append("not covered yet: TLS certificate (arrives with the TLS module)")
+async def run_tls_step(
+    result: ScanResult,
+    policy: ScopePolicy,
+    url: str,
+    page_hops: list[CollectedResponse],
+    *,
+    http_budget: int,
+    limits: TLSLimits | None = None,
+) -> None:
+    """TLS/cert inspection for ``url``'s host, plus the HTTP->HTTPS redirect and downgrade checks.
+
+    The redirect check uses the page's own hops when the start URL was http://; otherwise it
+    GETs http://<host>/ once (the start URL over plain HTTP, as a visitor typing the domain).
+    """
+    parts = urlsplit(url)
+    host = parts.hostname or ""
+    port = parts.port if parts.scheme == "https" and parts.port else 443
+    try:
+        obs = await collect_tls(policy, host, port, limits)
+    except OutOfScopeError as e:
+        result.errors.append(f"tls: {e}")
+        return
+    findings = check_tls(obs) + check_downgrade(page_hops)
+    if page_hops and urlsplit(page_hops[0].url).scheme == "http":
+        findings += check_http_redirect(page_hops)
+    elif http_budget > 0 and parts.port in (None, 443):
+        try:
+            chain, _ = await _get(policy, f"http://{host}/", http_budget)
+            result.pages += [h.url for h in chain.hops]
+            findings += check_http_redirect(chain.hops) + check_downgrade(chain.hops)
+        except (FetchError, OutOfScopeError) as e:
+            result.notes.append(f"http://{host}/ not reachable for the redirect check ({e})")
+    result.findings += findings
+    result.checks_run.append("tls")
 
 
 def _dns_email(result: ScanResult) -> None:
@@ -101,14 +135,27 @@ async def run_quick(target: Target) -> ScanResult:
 
     if hops and budget > 0:
         try:
-            sec = await _collect_security_txt(hops[-1].url, policy, budget)
+            sec, used = await _collect_security_txt(hops[-1].url, policy, budget)
+            budget -= used
         except (FetchError, OutOfScopeError) as e:
             result.errors.append(f"security.txt: {e}")
             sec = []
         result.pages += [h.url for h in sec]
         run_checks(result, sec, ["security_txt"])
 
-    _tls_cert(result)
+    tls_url = hops[-1].url if hops else target.url
+    await run_tls_step(result, policy, tls_url, hops, http_budget=budget)
     _dns_email(result)
+    result.finish()
+    return result
+
+
+async def run_tls_only(target: Target, limits: TLSLimits | None = None) -> ScanResult:
+    """Handshake + certificate inspection only: no page, security.txt, or HTTP requests."""
+    result = ScanResult(target)
+    await run_tls_step(
+        result, ScopePolicy.for_target(target), target.url, [], http_budget=0, limits=limits
+    )
+    result.notes.append("TLS-only run: no HTTP requests were made")
     result.finish()
     return result
