@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import socket
 import ssl
+import warnings
 from dataclasses import dataclass, replace
 
 from sslyze import (
@@ -29,6 +30,10 @@ from sslyze import (
 from albert.core.certs import cert_info, parse_der
 from albert.core.models import TLSObservation
 from albert.core.scope import ScopePolicy
+
+# sslyze's bundled trust store has a root with a non-positive serial; cryptography warns on
+# every load. Harmless for path validation, so silence exactly that message.
+warnings.filterwarnings("ignore", message="Parsed a serial number which wasn't positive")
 
 # The complete allowlist. Anything not listed here is never queued.
 SSLYZE_PROTOCOL_COMMANDS: dict[ScanCommand, str] = {
