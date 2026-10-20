@@ -15,7 +15,8 @@ and ``match`` with exactly one of:
 - ``headers: [names]`` + one of ``each_present: true`` (every occurrence, received order),
   ``value_matches: <regex>``, ``value_not_matches: <regex>``
 - ``cookie: {flag_missing: secure|httponly, samesite: missing|none|lax|strict,
-  name_matches / name_not_matches: <regex>}`` (all given conditions must hold). Ids/titles may
+  name_matches / name_not_matches: <regex>}`` (all given conditions must hold).
+  Any regex may instead be ``"@name"``, a pattern from ``NAMED_PATTERNS``. Ids/titles may
   use ``{cookie_id}`` / ``{cookie}``; cookie rule ids must, so each cookie stays distinct.
 """
 
@@ -33,6 +34,7 @@ from typing import Any
 import yaml
 
 from albert.checks.cookies import (
+    SENSITIVE_COOKIE_NAME,
     SetCookie,
     cookie_evidence,
     cookie_id_part,
@@ -54,6 +56,9 @@ from albert.core.models import (
 )
 
 RULES_DIR = Path(__file__).resolve().parent.parent / "rules"
+
+# Patterns defined once in Python and referenced from YAML as "@name" (shared, not copied).
+NAMED_PATTERNS: dict[str, re.Pattern[str]] = {"sensitive_cookie": SENSITIVE_COOKIE_NAME}
 
 CheckFamily = Callable[[Sequence[CollectedResponse]], list[Finding]]
 
@@ -113,6 +118,12 @@ class Rule:
 def _regex(pattern: Any) -> re.Pattern[str]:
     if not isinstance(pattern, str):
         raise RuleError(f"regex must be a string, got {pattern!r}")
+    if pattern.startswith("@"):
+        try:
+            return NAMED_PATTERNS[pattern[1:]]
+        except KeyError:
+            known = ", ".join("@" + n for n in NAMED_PATTERNS)
+            raise RuleError(f"unknown named pattern {pattern!r} (known: {known})") from None
     try:
         return re.compile(pattern)
     except re.error as e:

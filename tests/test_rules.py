@@ -102,3 +102,69 @@ def test_cli_lint_and_list(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     bad = write(tmp_path, GOOD.replace("severity: info", "severity: huge"))
     assert main(["rules", "lint", "--dir", str(bad)]) == 1
     assert "is not one of" in capsys.readouterr().err
+
+
+NAMES = [
+    "PHPSESSID",
+    "JSESSIONID",
+    "connect.sid",
+    "laravel_session",
+    "session",
+    "sid",
+    "auth_token",
+    "remember_me",
+    "XSRF-TOKEN",
+    "refresh",
+    "cart_id",
+    "theme",
+    "_ga",
+    "tracker",
+    "lang",
+]
+
+
+def test_one_definition_of_session_cookie() -> None:
+    from albert.checks.cookies import SENSITIVE_COOKIE_NAME
+    from albert.core.engine import RULES_DIR, default_rules
+
+    escalations = [rx for r in default_rules() if r.family == "cookies" for rx, _ in r.escalate]
+    assert escalations and all(rx is SENSITIVE_COOKIE_NAME for rx in escalations)
+    assert "phpsessid" not in (RULES_DIR / "cookies.yaml").read_text(encoding="utf-8").lower()
+
+
+def test_yaml_rules_and_python_checks_agree_on_session_cookies() -> None:
+    from albert.checks.cookies import parse_set_cookie
+
+    for name in NAMES:
+        resp = CollectedResponse(
+            "https://www.shop.test/",
+            200,
+            (("Set-Cookie", f"{name}=v; Domain=shop.test; Path=/; HttpOnly; SameSite=Lax"),),
+        )
+        found = run_family("cookies", [resp])
+        cookie = parse_set_cookie(f"{name}=v")
+        assert cookie is not None
+        yaml_says = (
+            next(f for f in found if f.id.startswith("COOKIE-NO-SECURE-")).severity
+            is Severity.MEDIUM
+        )
+        python_says = (
+            next(f for f in found if f.id.startswith("COOKIE-BROAD-DOMAIN-")).severity
+            is Severity.LOW
+        )
+        assert yaml_says == python_says == cookie.sensitive, name
+
+
+def test_unknown_named_pattern_fails_lint(tmp_path: Path) -> None:
+    rule = (
+        GOOD.replace("HDR-X-POWERED-BY-PRESENT", "COOKIE-X-{cookie_id}")
+        .replace(
+            "    header: X-Powered-By\n    present: true", "    cookie: {flag_missing: secure}"
+        )
+        .replace(
+            "  confidence: high",
+            "  escalate:\n  - {cookie_name_matches: '@nope', severity: low}\n  confidence: high",
+        )
+    )
+    _, problems = lint_rules(write(tmp_path, rule, "cookies.yaml"))
+    assert any("unknown named pattern '@nope'" in p for p in problems), problems

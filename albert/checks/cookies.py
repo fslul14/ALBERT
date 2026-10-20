@@ -26,7 +26,9 @@ MDN = "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
 
 # Names that usually carry a session or credential. CSRF tokens are sensitive but are often
 # meant to be JS-readable (double-submit), so they're exempt from the HttpOnly check only.
-_SENSITIVE = re.compile(
+# THE definition of a session/credential cookie name. YAML rules reference it as
+# "@sensitive_cookie" (core/engine.py NAMED_PATTERNS), so the two can't drift.
+SENSITIVE_COOKIE_NAME = re.compile(
     r"sess|sid$|^sid|auth|token|jwt|login|remember|identity|access|refresh|csrf|xsrf|"
     r"^connect\.sid$|phpsessid|jsessionid|asp\.net_sessionid|^_?session$|_session$",
     re.I,
@@ -57,7 +59,7 @@ class SetCookie:
 
     @property
     def sensitive(self) -> bool:
-        return bool(_SENSITIVE.search(self.name))
+        return bool(SENSITIVE_COOKIE_NAME.search(self.name))
 
 
 def parse_set_cookie(header: str) -> SetCookie | None:

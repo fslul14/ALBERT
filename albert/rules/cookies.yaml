@@ -3,15 +3,15 @@
 # gets its own finding. Domain/Path/prefix checks need logic and stay in checks/cookies.py.
 # Validate: albert rules lint
 
-# Names that usually carry a session or credential: their findings are escalated.
-x-sensitive-cookie: &sensitive "(?i)sess|sid$|^sid|auth|token|jwt|login|remember|identity|access|refresh|csrf|xsrf|^connect\\.sid$|phpsessid|jsessionid|asp\\.net_sessionid|^_?session$|_session$"
+# Session/credential-looking cookie names are escalated via "@sensitive_cookie", defined
+# once in albert/checks/cookies.py (SENSITIVE_COOKIE_NAME).
 
 rules:
 - id: COOKIE-NO-SECURE-{cookie_id}
   title: "Cookie '{cookie}': missing Secure"
   severity: low
   escalate:
-  - cookie_name_matches: *sensitive
+  - cookie_name_matches: "@sensitive_cookie"
     severity: medium
   confidence: high
   impact: The cookie is also sent over plain HTTP, where it can be intercepted.
@@ -27,7 +27,7 @@ rules:
   title: "Cookie '{cookie}': missing HttpOnly"
   severity: info
   escalate:
-  - cookie_name_matches: *sensitive
+  - cookie_name_matches: "@sensitive_cookie"
     severity: medium
   confidence: high
   impact: Page scripts (and so any XSS) can read the cookie.
@@ -42,7 +42,7 @@ rules:
   title: "Cookie '{cookie}': missing SameSite"
   severity: info
   escalate:
-  - cookie_name_matches: *sensitive
+  - cookie_name_matches: "@sensitive_cookie"
     severity: low
   confidence: high
   impact: Cross-site behavior depends on browser defaults (Lax in some, not all).
