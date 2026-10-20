@@ -1,0 +1,14 @@
+# Strict nonce-based CSP ('unsafe-inline'/https: are ignored under 'strict-dynamic').
+HTTP/2 200
+content-type: text/html; charset=utf-8
+content-security-policy: default-src 'none'; script-src 'nonce-r4nd0m' 'strict-dynamic' 'unsafe-inline' https:; style-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-content-type-options: nosniff
+referrer-policy: strict-origin-when-cross-origin
+permissions-policy: camera=(), microphone=(), geolocation=()
+cross-origin-opener-policy: same-origin
+cross-origin-embedder-policy: require-corp
+cross-origin-resource-policy: same-origin
+cache-control: no-store
+server: nginx
+x-xss-protection: 0

@@ -135,6 +135,47 @@ def group_findings(findings: Iterable[Finding]) -> list[Finding]:
 
 
 @dataclass(frozen=True)
+class CollectedResponse:
+    """One HTTP response as collected; what header checks consume. Never reported directly."""
+
+    url: str
+    status: int
+    headers: tuple[tuple[str, str], ...] = ()  # received order, duplicates kept
+    http_version: str = "HTTP/1.1"
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "headers", tuple((str(k), str(v)) for k, v in self.headers))
+
+    def header_all(self, name: str) -> list[str]:
+        """Every value of header ``name`` (case-insensitive), in order."""
+        n = name.lower()
+        return [v for k, v in self.headers if k.lower() == n]
+
+    def header(self, name: str) -> str | None:
+        """First value of header ``name``, or None."""
+        values = self.header_all(name)
+        return values[0] if values else None
+
+    @property
+    def content_type(self) -> str:
+        """Lowercased MIME type without parameters ("" if absent)."""
+        return (self.header("content-type") or "").split(";")[0].strip().lower()
+
+    @property
+    def is_document(self) -> bool:
+        """A successful HTML page (where document-level headers like CSP matter)."""
+        return 200 <= self.status < 300 and self.content_type in {
+            "text/html",
+            "application/xhtml+xml",
+        }
+
+    @property
+    def is_https(self) -> bool:
+        """Served over HTTPS."""
+        return urlsplit(self.url).scheme == "https"
+
+
+@dataclass(frozen=True)
 class Target:
     """What is being scanned, and under whose authorization."""
 

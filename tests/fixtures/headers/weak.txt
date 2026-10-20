@@ -1,0 +1,22 @@
+# Modern stack with weak values and leaky debug/backend headers behind Cloudflare.
+HTTP/2 200
+content-type: text/html
+content-security-policy: default-src 'self' *; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; frame-ancestors *
+strict-transport-security: max-age=86400
+x-frame-options: ALLOW-FROM https://partner.test
+x-content-type-options: nosniff
+referrer-policy: unsafe-url
+permissions-policy: camera=*, geolocation=()
+cross-origin-opener-policy: same-origin
+cross-origin-embedder-policy: require-corp
+cross-origin-resource-policy: same-origin
+access-control-allow-origin: *
+access-control-allow-credentials: true
+x-debug-token: 4f2a1c
+x-debug-token-link: https://app.test/_profiler/4f2a1c
+server-timing: db;dur=53;desc="mysql primary", app;dur=47.2
+x-backend-server: 10.0.3.17
+x-request-id: 9f1c2b
+cf-ray: 7d1f2a3b4c5d6e7f-FRA
+server: cloudflare
+alt-svc: h3=":443"; ma=86400
