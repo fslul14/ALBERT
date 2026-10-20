@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html><head><title>Shop</title>
+<!--[if lt IE 9]><script src="html5shiv.js"></script><![endif]-->
+</head><body>
+<!-- TODO: remove the debug panel before launch -->
+<!-- db password: Hunter2!x (ask ops) -->
+<!-- legacy import: mysql://root:s3cretpw@db01.corp.internal:3306/shop -->
+<!-- password: {{ admin_password }} -->
+<!-- Footer -->
+<a href="mailto:support@shop.test">Support</a> <img src="logo@2x.png"> user@example.com
+<script>
+  // FIXME hardcoded until the config service is fixed
+  const API = "/api/v1/orders";
+  const gql = 'https://api.shop.test/graphql';
+  const dev = "http://localhost:3000/debug";
+  const ci = "https://jenkins.corp.internal/job/shop";
+  const bundle = "/v2/app.min.js";
+</script>
+</body></html>

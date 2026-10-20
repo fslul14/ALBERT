@@ -19,7 +19,7 @@ async def run_scan(
     state_path: Path | None = None,
     resume: bool = False,
 ) -> ScanResult:
-    """Crawl the target (scope-checked, same host) and run header + cookie checks."""
+    """Crawl the target (scope-checked, same host), then run header/cookie/disclosure checks."""
     result = ScanResult(target)
     budget = crawl_limits.max_pages * 3 + 20  # redirect hops + robots + sitemaps
     crawler = Crawler(
@@ -37,5 +37,6 @@ async def run_scan(
     result.errors = crawl.errors
     result.notes = crawl.notes
     run_checks(result, crawl.responses, ["headers", "cookies"])
+    run_checks(result, crawl.responses + crawl.aux, ["disclosure"])  # + robots/sitemaps
     result.finish()
     return result

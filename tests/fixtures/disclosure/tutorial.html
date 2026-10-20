@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html><head><title>Debugging Python errors: a beginner's guide</title></head>
+<body><main><article>
+<h1>Reading a Python traceback</h1>
+<p>When your script crashes you'll see something like this:</p>
+<pre><code>Traceback (most recent call last):
+  File "/home/alice/app.py", line 3, in &lt;module&gt;
+    print(1 / 0)
+ZeroDivisionError: division by zero</code></pre>
+<p>Django shows a yellow page saying <code>You're seeing this error because you have &lt;code&gt;DEBUG = True&lt;/code&gt;</code>.</p>
+<p>A MySQL injection bug often prints:</p>
+<blockquote>You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax</blockquote>
+<p>And Java prints frames like <code>at com.example.Main.run(Main.java:10)</code>.</p>
+</article></main></body></html>

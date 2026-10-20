@@ -271,3 +271,21 @@ async def test_state_file_holds_no_cookies_or_tokens(tmp_path: Path) -> None:
     assert "<p>" not in text  # no bodies
     assert '"session=; Path=/; HttpOnly"' in text  # name + attributes kept for cookie checks
     assert f"{BASE}/a" in text  # the unfetched link is what resume needs
+
+
+@respx.mock
+def test_scan_reports_robots_sensitive_paths_without_fetching(tmp_path: Path) -> None:
+    scope = tmp_path / "scope.toml"
+    scope.write_text(
+        '[[target]]\nhost = "site.test"\nauthorized_by = "self"\ndate = "2026-10-20"\n',
+        encoding="utf-8",
+    )
+    admin = respx.get(f"{BASE}/admin/").mock(return_value=page())
+    site({"/": page()}, robots="User-agent: *\nDisallow: /admin/\n")
+    out = tmp_path / "reports"
+    assert main(["scan", f"{BASE}/", "--scope", str(scope), "--out", str(out), "--rate", "0"]) == 0
+    data = json.loads(next(out.glob("site.test_*.json")).read_text(encoding="utf-8"))
+    notes = {f["id"]: f for f in data["posture_notes"]}
+    assert [e["value"] for e in notes["DISC-ROBOTS-SENSITIVE"]["evidence"]] == ["/admin/"]
+    assert not admin.called
+    assert "disclosure" in data["checks_run"]

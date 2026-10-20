@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /backup.sql
+Disallow: /css/
+Disallow: /search
+Allow: /staging/preview  # temporary
+Sitemap: https://shop.test/sitemap.xml

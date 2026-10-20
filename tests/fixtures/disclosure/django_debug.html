@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="en"><head><title>ZeroDivisionError at /cart/</title></head>
+<body>
+<div id="summary"><h1>ZeroDivisionError at /cart/</h1><pre class="exception_value">division by zero</pre></div>
+<div id="traceback"><pre>Traceback (most recent call last):
+  File "/home/deploy/venv/lib/python3.11/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+  File "/srv/shop/cart/views.py", line 12, in cart
+    ratio = total / count
+ZeroDivisionError: division by zero</pre></div>
+<div id="explanation"><p>You&#x27;re seeing this error because you have <code>DEBUG = True</code> in your Django settings file.</p></div>
+</body></html>

@@ -174,6 +174,7 @@ class CrawlResult:
     errors: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     resumed: int = 0  # responses loaded from state instead of re-fetched
+    aux: list[CollectedResponse] = field(default_factory=list)  # robots.txt, sitemaps
 
 
 class Crawler:
@@ -373,6 +374,8 @@ class Crawler:
         )
         hops = await self._fetch(robots_url)
         final = hops[-1] if hops else None
+        if final is not None:
+            self.result.aux.append(final)
         if final is None or final.status >= 500:
             # RFC 9309: unreachable robots.txt means assume full disallow.
             self._robots_mode = "deny"
@@ -400,6 +403,7 @@ class Crawler:
             hops = await self._fetch(url)
             if not hops or hops[-1].status != 200:
                 continue
+            self.result.aux.append(hops[-1])
             for loc in sitemap_locs(hops[-1].text):
                 if loc.lower().split("?")[0].endswith((".xml", ".xml.gz")):
                     pending.append(loc)  # nested sitemap index entry
