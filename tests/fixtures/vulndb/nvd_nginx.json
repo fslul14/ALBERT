@@ -1,0 +1,16 @@
+{"resultsPerPage": 2, "startIndex": 0, "totalResults": 2, "vulnerabilities": [
+  {"cve": {"id": "CVE-2021-23017",
+    "descriptions": [{"lang": "en", "value": "1-byte memory overwrite in the nginx resolver (abridged fixture)."}],
+    "metrics": {"cvssMetricV31": [{"cvssData": {"baseScore": 7.7, "baseSeverity": "HIGH",
+      "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:L/A:H"}}]},
+    "weaknesses": [{"description": [{"lang": "en", "value": "CWE-193"}]}],
+    "configurations": [{"nodes": [{"operator": "OR", "negate": false, "cpeMatch": [
+      {"vulnerable": true, "criteria": "cpe:2.3:a:f5:nginx:*:*:*:*:*:*:*:*",
+       "versionStartIncluding": "0.6.18", "versionEndExcluding": "1.20.1"}]}]}]}},
+  {"cve": {"id": "CVE-0000-00002",
+    "descriptions": [{"lang": "en", "value": "Synthetic: only exploitable on a specific OS (test fixture)."}],
+    "metrics": {"cvssMetricV31": [{"cvssData": {"baseScore": 5.3, "baseSeverity": "MEDIUM"}}]},
+    "configurations": [{"operator": "AND", "nodes": [
+      {"operator": "OR", "cpeMatch": [{"vulnerable": true, "criteria": "cpe:2.3:a:f5:nginx:1.18.0:*:*:*:*:*:*:*"}]},
+      {"operator": "OR", "cpeMatch": [{"vulnerable": false, "criteria": "cpe:2.3:o:example:os:-:*:*:*:*:*:*:*"}]}]}]}}
+]}

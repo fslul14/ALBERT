@@ -1,0 +1,6 @@
+{"vulns": [
+  {"id": "TEST-CRIT-0001", "aliases": ["CVE-0000-00001"],
+   "summary": "Synthetic critical advisory (test fixture only)",
+   "severity": [{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}],
+   "affected": [{"ranges": [{"type": "SEMVER", "events": [{"introduced": "0"}, {"fixed": "9.9.9"}]}]}]}
+]}

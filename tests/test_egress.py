@@ -23,7 +23,7 @@ NETWORK_MODULES = {
 }
 NETWORK_CALLS = {"open_connection", "create_connection", "getaddrinfo", "sock_connect"}
 # Grows as egress modules land (browser.py, dns_client.py, TLS); each must call scope first.
-ALLOWED = {"core/http_client.py", "core/tls_client.py", "core/browser.py"}
+ALLOWED = {"core/http_client.py", "core/tls_client.py", "core/browser.py", "core/intel.py"}
 
 
 def _modules() -> list[tuple[str, ast.Module]]:
@@ -94,3 +94,26 @@ def test_transport_checks_scope_first() -> None:
     first = handlers[0].body[0]
     calls = [n for n in ast.walk(first) if isinstance(n, ast.Call)]
     assert any(isinstance(c.func, ast.Attribute) and c.func.attr == "check_request" for c in calls)
+
+
+def test_intel_transport_checks_policy_first() -> None:
+    """The third-party (vuln DB) path has its own checkpoint, also run before any send."""
+    tree = dict(_modules())["core/intel.py"]
+    (handler,) = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.AsyncFunctionDef) and n.name == "handle_async_request"
+    ]
+    calls = [n for n in ast.walk(handler.body[0]) if isinstance(n, ast.Call)]
+    assert any(isinstance(c.func, ast.Attribute) and c.func.attr == "check" for c in calls)
+    clients = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call) and getattr(n.func, "attr", "") in {"AsyncClient", "Client"}
+    ]
+    assert clients and all(
+        isinstance(k.value, ast.Attribute) and k.value.attr == "_transport"
+        for c in clients
+        for k in c.keywords
+        if k.arg == "transport"
+    )

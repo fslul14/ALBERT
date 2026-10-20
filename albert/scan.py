@@ -6,6 +6,7 @@ from collections import Counter
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from albert.checks.cve import match_cves
 from albert.checks.fingerprint import FingerprintInput, detect_technologies
 from albert.checks.js import run_js_checks
 from albert.checks.rendered import reconcile_meta_csp, run_rendered_checks
@@ -15,6 +16,7 @@ from albert.core.engine import run_checks
 from albert.core.http_client import ClientLimits, HttpClient
 from albert.core.models import CollectedResponse, RenderedPage, ScanResult, Target
 from albert.core.scope import ScopePolicy
+from albert.core.vulndb import CveMode, default_cache_dir, lookup_all
 from albert.quick import run_tls_step
 
 INSTALL_HINT = r".venv\Scripts\playwright install chromium"
@@ -28,6 +30,8 @@ async def run_scan(
     state_path: Path | None = None,
     resume: bool = False,
     render: RenderLimits | None = None,
+    cve_mode: CveMode = "cache",
+    cache_dir: Path | None = None,
 ) -> ScanResult:
     """Crawl the target (scope-checked, same host), run page checks, optionally render
     pages headlessly (opt-in), then inspect TLS."""
@@ -61,6 +65,16 @@ async def run_scan(
         )
     )
     result.checks_run.append("fingerprint")
+    if cve_mode != "off":
+        lookups = await lookup_all(
+            result.tech,
+            cve_mode,
+            cache_dir or default_cache_dir(Path("reports")),
+            target_hosts=tuple(policy.hosts),
+        )
+        result.findings += match_cves(lookups.lookups)
+        result.notes += lookups.notes
+        result.checks_run.append("cve")
     result.findings += run_js_checks(crawl.responses, [*crawl.scripts, *rendered_scripts])
     result.checks_run.append("js")
     if crawl.scripts or rendered_scripts:

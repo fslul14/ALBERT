@@ -16,6 +16,7 @@ from albert.core.crawler import CrawlLimits, state_path_for
 from albert.core.engine import RULES_DIR, lint_rules
 from albert.core.models import ScanResult, Target
 from albert.core.report import write_report
+from albert.core.vulndb import default_cache_dir
 from albert.quick import run_quick, run_tls_only
 from albert.scan import run_scan
 
@@ -49,6 +50,13 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--resume", action="store_true", help="continue an interrupted scan")
     scan.add_argument("--render", action="store_true", help="render pages in headless Chromium")
     scan.add_argument("--render-max", type=int, default=RenderLimits.max_pages)
+    scan.add_argument(
+        "--cve",
+        choices=["off", "cache", "online"],
+        default="cache",
+        help="CVE matching: cache = local data only (default); online = query OSV.dev/NVD "
+        "(third-party, never the target)",
+    )
     rules = sub.add_parser("rules", help="validate or list the YAML rules")
     rules.add_argument("action", choices=["lint", "list"])
     rules.add_argument("--dir", type=Path, default=RULES_DIR, help="rules directory")
@@ -138,6 +146,8 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 state_path=state_path_for(args.out, target.host),
                 resume=args.resume,
                 render=RenderLimits(max_pages=args.render_max) if args.render else None,
+                cve_mode=args.cve,
+                cache_dir=default_cache_dir(args.out),
             )
         )
         return _finish(result, args)

@@ -1,0 +1,14 @@
+{"vulns": [
+  {"id": "GHSA-gxr4-xjj5-5px2", "aliases": ["CVE-2020-11022"],
+   "summary": "Potential XSS vulnerability in jQuery (abridged fixture)",
+   "severity": [{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"}],
+   "affected": [{"package": {"ecosystem": "npm", "name": "jquery"},
+                 "ranges": [{"type": "SEMVER", "events": [{"introduced": "1.2.0"}, {"fixed": "3.5.0"}]}]}],
+   "database_specific": {"severity": "MODERATE", "cwe_ids": ["CWE-79"]}},
+  {"id": "GHSA-jpcq-cgw6-v4j6", "aliases": ["CVE-2020-11023"],
+   "summary": "Potential XSS vulnerability in jQuery when passing <option> HTML (abridged fixture)",
+   "severity": [{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"}],
+   "affected": [{"package": {"ecosystem": "npm", "name": "jquery"},
+                 "ranges": [{"type": "SEMVER", "events": [{"introduced": "1.0.3"}, {"fixed": "3.5.0"}]}]}],
+   "database_specific": {"severity": "MODERATE", "cwe_ids": ["CWE-79"]}}
+]}
