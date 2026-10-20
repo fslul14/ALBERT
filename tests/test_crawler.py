@@ -289,3 +289,46 @@ def test_scan_reports_robots_sensitive_paths_without_fetching(tmp_path: Path) ->
     assert [e["value"] for e in notes["DISC-ROBOTS-SENSITIVE"]["evidence"]] == ["/admin/"]
     assert not admin.called
     assert "disclosure" in data["checks_run"]
+
+
+@respx.mock
+def test_scan_checks_security_txt_once_even_if_linked(tmp_path: Path) -> None:
+    scope = tmp_path / "scope.toml"
+    scope.write_text(
+        '[[target]]\nhost = "site.test"\nauthorized_by = "self"\ndate = "2026-10-20"\n',
+        encoding="utf-8",
+    )
+    sec = respx.get(f"{BASE}/.well-known/security.txt").mock(
+        return_value=httpx.Response(
+            200,
+            headers={"Content-Type": "text/plain"},
+            text="Contact: mailto:s@site.test\nExpires: 2020-01-01T00:00:00Z\n",
+        )
+    )
+    site({"/": page("/.well-known/security.txt", "/a"), "/a": page("/.well-known/security.txt")})
+    out = tmp_path / "reports"
+    assert main(["scan", f"{BASE}/", "--scope", str(scope), "--out", str(out), "--rate", "0"]) == 0
+    data = json.loads(next(out.glob("site.test_*.json")).read_text(encoding="utf-8"))
+    assert sec.call_count == 1  # fetched once, not again by the crawl
+    every = data["findings"] + data["posture_notes"]
+    expired = [f for f in every if f["id"] == "SEC-TXT-EXPIRED"]
+    assert len(expired) == 1 and expired[0]["urls"] == [f"{BASE}/.well-known/security.txt"]
+    sec_url = f"{BASE}/.well-known/security.txt"
+    assert not any(sec_url in f["urls"] for f in every if not f["id"].startswith("SEC-TXT-"))
+    assert data["checks_run"].count("security_txt") == 1
+
+
+@respx.mock
+def test_scan_respects_robots_for_security_txt(tmp_path: Path) -> None:
+    scope = tmp_path / "scope.toml"
+    scope.write_text(
+        '[[target]]\nhost = "site.test"\nauthorized_by = "self"\ndate = "2026-10-20"\n',
+        encoding="utf-8",
+    )
+    sec = respx.get(f"{BASE}/.well-known/security.txt").mock(return_value=httpx.Response(200))
+    site({"/": page()}, robots="User-agent: *\nDisallow: /.well-known/\n")
+    out = tmp_path / "reports"
+    main(["scan", f"{BASE}/", "--scope", str(scope), "--out", str(out), "--rate", "0"])
+    data = json.loads(next(out.glob("site.test_*.json")).read_text(encoding="utf-8"))
+    assert not sec.called
+    assert any("security.txt" in s and "robots" in s for s in data["appendix"]["skipped"])

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlsplit
 
 from albert.core.models import CollectedResponse, Confidence, Evidence, Finding, Severity
 
@@ -57,6 +58,25 @@ _SPECS: dict[str, tuple[str, Severity, str, str]] = {
         S.INFO,
         "Reports sent to an http:// contact can be intercepted.",
         "Use https:, mailto:, or tel: contacts.",
+    ),
+    "SEC-TXT-NOT-HTTPS": (
+        "security.txt not served over HTTPS",
+        S.LOW,
+        "RFC 9116 requires HTTPS; a file (or redirect) over plain HTTP can be swapped in transit, "
+        "redirecting vulnerability reports to an attacker.",
+        "Serve /.well-known/security.txt over HTTPS, with every redirect hop on https://.",
+    ),
+    "SEC-TXT-DUPLICATE-FIELD": (
+        "security.txt repeats a single-use field",
+        S.LOW,
+        "Expires and Preferred-Languages must appear at most once; parsers may reject the file.",
+        "Keep one Expires and one Preferred-Languages line.",
+    ),
+    "SEC-TXT-CANONICAL-MISMATCH": (
+        "security.txt Canonical doesn't list where it was found",
+        S.INFO,
+        "Readers may treat the file as stale or misplaced (a copy served from the wrong URL).",
+        "List this file's URL in Canonical (or fix the location).",
     ),
     "SEC-TXT-PRESENT": (
         "security.txt published",
@@ -147,6 +167,47 @@ def check_security_txt(resp: CollectedResponse, now: datetime | None = None) -> 
     return out
 
 
+def check_rfc9116(chain: Sequence[CollectedResponse]) -> list[Finding]:
+    """RFC 9116 location/format rules over the whole fetch chain: HTTPS on every hop (s.3),
+    single-use fields (s.2.5.5, s.2.5.8), Canonical listing the fetched URL (s.2.5.2)."""
+    final = chain[-1]
+    if (
+        final.status != 200
+        or not final.text.strip()
+        or final.content_type in {"text/html", "application/xhtml+xml"}
+    ):
+        return []  # missing: already reported
+    out = []
+    plain = [h.url for h in chain if urlsplit(h.url).scheme != "https"]
+    if plain:
+        out.append(_hit(final, "SEC-TXT-NOT-HTTPS", *(Evidence("http", u, "hop") for u in plain)))
+    fields = parse_security_txt(final.text)
+    repeated = [k for k in ("expires", "preferred-languages") if len(fields.get(k, [])) > 1]
+    if repeated:
+        out.append(
+            _hit(
+                final,
+                "SEC-TXT-DUPLICATE-FIELD",
+                *(Evidence("field", f"{len(fields[k])}x", k.title()) for k in repeated),
+            )
+        )
+    canonical = fields.get("canonical", [])
+    fetched = {chain[0].url, final.url}
+    if canonical and not fetched & set(canonical):
+        out.append(
+            _hit(
+                final,
+                "SEC-TXT-CANONICAL-MISMATCH",
+                *(Evidence("field", c, "Canonical") for c in canonical),
+                Evidence("http", final.url, "fetched from"),
+            )
+        )
+    return out
+
+
 def run_security_txt_checks(responses: Sequence[CollectedResponse]) -> list[Finding]:
-    """Family entry point: ``responses`` is the security.txt fetch chain; the final hop counts."""
-    return check_security_txt(responses[-1]) if responses else []
+    """Family entry point: ``responses`` is the /.well-known/security.txt fetch chain (all hops,
+    final one evaluated). Runs once per scan on that chain, so nothing is duplicated."""
+    if not responses:
+        return []
+    return check_security_txt(responses[-1]) + check_rfc9116(responses)

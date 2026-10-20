@@ -93,6 +93,8 @@ async def run_scan(
     result.notes = crawl.notes
     run_checks(result, crawl.responses, ["headers", "cookies", "cors"])
     run_checks(result, crawl.responses + crawl.aux, ["disclosure"])  # + robots/sitemaps
+    run_checks(result, crawl.security_txt, ["security_txt"])  # once, on its own fetch chain
+    result.pages += [h.url for h in crawl.security_txt]
     rendered = await _render_step(result, policy, crawl.responses, rate, render) if render else []
     rendered_scripts = [js for page in rendered for js in page.scripts]
     result.tech = detect_technologies(

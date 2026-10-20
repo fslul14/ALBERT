@@ -202,6 +202,7 @@ class CrawlResult:
     aux: list[CollectedResponse] = field(default_factory=list)  # robots.txt, sitemaps
     scripts: list[CollectedResponse] = field(default_factory=list)  # same-host JS files
     favicons: list[tuple[str, bytes]] = field(default_factory=list)  # referenced icons only
+    security_txt: list[CollectedResponse] = field(default_factory=list)  # well-known chain
 
 
 class Crawler:
@@ -470,6 +471,20 @@ class Crawler:
                 self.client_limits = replace(self.client_limits, rate=1 / float(delay))
                 self.result.notes.append(f"robots.txt Crawl-delay {delay}s honored")
 
+    async def _load_security_txt(self) -> None:
+        """Fetch /.well-known/security.txt once (a standard well-known file, never guessed
+        elsewhere) and mark it seen so the crawl doesn't fetch or check it again."""
+        parts = urlsplit(self.start_url)
+        url = f"{parts.scheme}://{parts.netloc}/.well-known/security.txt"
+        if not self._robots_allows(url):
+            self._skip(url, "disallowed by robots.txt")
+            return
+        hops = await self._fetch(url)
+        self.result.security_txt = hops
+        for hop in hops:
+            if key := dedup_key(hop.url):
+                self._seen.add(key)
+
     async def _load_sitemaps(self) -> None:
         base = f"{urlsplit(self.start_url).scheme}://{urlsplit(self.start_url).netloc}"
         listed = self._robots.site_maps() if self._robots_mode == "rules" else None
@@ -567,6 +582,7 @@ class Crawler:
                 self.result.notes.append(
                     f"resumed: {len(loaded.pages)} responses loaded (headers only), not re-fetched"
                 )
+            await self._load_security_txt()
             self.enqueue(self.start_url, 0)
             await self._load_sitemaps()
             workers = [

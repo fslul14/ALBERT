@@ -56,3 +56,49 @@ def test_signed_file_parsed() -> None:
     fields = parse_security_txt(body)
     assert fields["contact"] == ["mailto:sec@x.test"]
     assert fields["expires"] == ["2027-01-01T00:00:00Z"]
+
+
+# --- RFC 9116 location/format rules (step 20) --------------------------------------------
+
+from albert.checks.security_txt import run_security_txt_checks  # noqa: E402
+
+GOOD = "Contact: mailto:sec@x.test\nExpires: 2027-06-01T00:00:00Z\n"
+
+
+def _hop(url: str, status: int = 200, text: str = GOOD) -> CollectedResponse:
+    ctype = "text/plain" if status == 200 else "text/html"
+    return CollectedResponse(url, status, (("Content-Type", ctype),), text=text)
+
+
+def _chain_ids(*chain: CollectedResponse) -> set[str]:
+    return {f.id for f in run_security_txt_checks(list(chain))}
+
+
+def test_https_required_on_every_hop() -> None:
+    plain = _chain_ids(_hop("http://x.test/.well-known/security.txt"))
+    assert "SEC-TXT-NOT-HTTPS" in plain
+    redirected = _chain_ids(_hop("http://x.test/.well-known/security.txt", 301, ""), _hop(URL))
+    assert "SEC-TXT-NOT-HTTPS" in redirected  # the http hop counts too
+    assert "SEC-TXT-NOT-HTTPS" not in _chain_ids(_hop(URL))
+
+
+def test_single_use_fields_and_canonical() -> None:
+    twice = (
+        GOOD + "Expires: 2027-07-01T00:00:00Z\nPreferred-Languages: en\nPreferred-Languages: de\n"
+    )
+    dup = [
+        f
+        for f in run_security_txt_checks([_hop(URL, text=twice)])
+        if f.id == "SEC-TXT-DUPLICATE-FIELD"
+    ]
+    assert {e.location for e in dup[0].evidence} == {"Expires", "Preferred-Languages"}
+    assert "SEC-TXT-CANONICAL-MISMATCH" in _chain_ids(
+        _hop(URL, text=GOOD + "Canonical: https://other.test/.well-known/security.txt\n")
+    )
+    assert "SEC-TXT-CANONICAL-MISMATCH" not in _chain_ids(
+        _hop(URL, text=GOOD + f"Canonical: {URL}\n")
+    )
+
+
+def test_missing_file_reported_once() -> None:
+    assert _chain_ids(_hop(URL, 404, "")) == {"SEC-TXT-MISSING"}
