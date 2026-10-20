@@ -845,14 +845,30 @@ def check_cdn_waf(resp: CollectedResponse) -> list[Finding]:
 
 
 def check_protocols(resp: CollectedResponse) -> list[Finding]:
-    """HTTP/2 or HTTP/3 as negotiated / advertised via Alt-Svc."""
-    notes = []
-    if resp.http_version.upper() in {"HTTP/2", "HTTP/2.0", "HTTP/3"}:
-        notes.append(Evidence("protocol", f"negotiated {resp.http_version.upper()}"))
-    alt = resp.header_all("alt-svc")
-    if any(re.search(r"\bh3(?:-\d+)?=", v) for v in alt):
-        notes.append(_ev("Alt-Svc", "; ".join(alt)))
-    return [_hit(resp, "HDR-PROTOCOLS", *notes)] if notes else []
+    """HTTP/2 and HTTP/3 support on documents.
+
+    Albert's client speaks HTTP/1.1 only, so HTTP/2 is inferred from Alt-Svc or reported as
+    not observed (which is not evidence the server lacks it).
+    """
+    if not resp.is_document:
+        return []
+    alt = "; ".join(resp.header_all("alt-svc"))
+    version = resp.http_version.upper()
+    if version.startswith(("HTTP/2", "HTTP/3")):
+        h2 = f"HTTP/2+: negotiated ({version})"
+    elif re.search(r"\bh2=", alt):
+        h2 = "HTTP/2: advertised via Alt-Svc"
+    else:
+        h2 = "HTTP/2: not observed (client is HTTP/1.1-only)"
+    h3 = (
+        "HTTP/3: advertised via Alt-Svc"
+        if re.search(r"\bh3(?:-\d+)?=", alt)
+        else "HTTP/3: not advertised (no h3 in Alt-Svc)"
+    )
+    evidence = [Evidence("protocol", h2), Evidence("protocol", h3)]
+    if alt:
+        evidence.append(_ev("Alt-Svc", alt))
+    return [_hit(resp, "HDR-PROTOCOLS", *evidence)]
 
 
 HeaderCheck = Callable[[CollectedResponse], list[Finding]]

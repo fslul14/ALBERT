@@ -13,13 +13,24 @@ from typing import Self
 import httpx
 
 from albert import __version__
-from albert.core.scope import ScopePolicy
+from albert.core.models import CollectedResponse
+from albert.core.scope import OutOfScopeError, ScopePolicy
 
 USER_AGENT = f"Albert/{__version__} (passive security scanner; +https://github.com/fslul14/ALBERT)"
 
 
 class BudgetExceededError(Exception):
     """The run's total request budget is spent. Nothing was sent."""
+
+
+class FetchError(Exception):
+    """A request failed (network, TLS, timeout, protocol). The message is safe to report."""
+
+
+def _collect(r: httpx.Response) -> CollectedResponse:
+    return CollectedResponse(
+        str(r.url), r.status_code, tuple(r.headers.multi_items()), r.http_version
+    )
 
 
 @dataclass(frozen=True)
@@ -104,6 +115,7 @@ class HttpClient:
         _inner: httpx.AsyncBaseTransport | None = None,  # tests only; still wrapped
     ) -> None:
         self.limits = limits or ClientLimits()
+        self._policy = policy
         self._transport = _GuardedTransport(
             policy, self.limits, _inner or httpx.AsyncHTTPTransport(retries=0)
         )
@@ -128,6 +140,34 @@ class HttpClient:
     async def head(self, url: str) -> httpx.Response:
         """HEAD ``url``."""
         return await self._client.head(url)
+
+    async def fetch_chain(self, url: str) -> tuple[list[CollectedResponse], str | None]:
+        """GET ``url``, following redirects here so every hop is kept for checks.
+
+        Returns (hops, note). ``note`` explains an early stop: an off-scope redirect (recorded,
+        not followed), too many redirects, or an error after the first hop. Raises FetchError
+        if the first request fails.
+        """
+        hops: list[CollectedResponse] = []
+        current = url
+        for _ in range(self.limits.max_redirects + 1):
+            try:
+                r = await self._client.get(current, follow_redirects=False)
+            except httpx.HTTPError as e:
+                msg = f"{current}: {type(e).__name__}: {e}"
+                if not hops:
+                    raise FetchError(msg) from None
+                return hops, f"error following redirect: {msg}"
+            hops.append(_collect(r))
+            if not r.is_redirect or r.next_request is None:
+                return hops, None
+            nxt = str(r.next_request.url)
+            try:
+                self._policy.check_request("GET", nxt)
+            except OutOfScopeError as e:
+                return hops, f"redirect to {nxt} not followed ({e})"
+            current = nxt
+        return hops, f"stopped after {self.limits.max_redirects} redirects"
 
     async def aclose(self) -> None:
         """Close connections."""

@@ -113,7 +113,8 @@ async def test_rate_limit_is_per_host() -> None:
     async with HttpClient(TWO_HOSTS, limits, _inner=httpx.MockTransport(handler)) as client:
         t0 = loop.time()
         await asyncio.gather(
-            client.get("https://a.test/1"), client.get("https://a.test/2"),
+            client.get("https://a.test/1"),
+            client.get("https://a.test/2"),
             client.get("https://b.test/1"),
         )
     a1, a2 = sorted(starts["a.test"])

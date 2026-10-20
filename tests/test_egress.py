@@ -8,8 +8,18 @@ from pathlib import Path
 PKG = Path(__file__).parent.parent / "albert"
 
 NETWORK_MODULES = {
-    "httpx", "socket", "ssl", "urllib.request", "http.client", "requests", "aiohttp",
-    "httpcore", "dns", "playwright", "sslyze", "websockets",
+    "httpx",
+    "socket",
+    "ssl",
+    "urllib.request",
+    "http.client",
+    "requests",
+    "aiohttp",
+    "httpcore",
+    "dns",
+    "playwright",
+    "sslyze",
+    "websockets",
 }
 NETWORK_CALLS = {"open_connection", "create_connection", "getaddrinfo", "sock_connect"}
 # Grows as egress modules land (browser.py, dns_client.py, TLS); each must call scope first.
@@ -60,8 +70,10 @@ def test_no_raw_connection_calls() -> None:
 def test_every_httpx_client_uses_guarded_transport() -> None:
     tree = dict(_modules())["core/http_client.py"]
     clients = [
-        n for n in ast.walk(tree)
-        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
         and n.func.attr in {"AsyncClient", "Client"}
     ]
     assert clients, "expected the httpx client construction"
@@ -74,7 +86,8 @@ def test_every_httpx_client_uses_guarded_transport() -> None:
 def test_transport_checks_scope_first() -> None:
     tree = dict(_modules())["core/http_client.py"]
     handlers = [
-        n for n in ast.walk(tree)
+        n
+        for n in ast.walk(tree)
         if isinstance(n, ast.AsyncFunctionDef) and n.name == "handle_async_request"
     ]
     assert len(handlers) == 1

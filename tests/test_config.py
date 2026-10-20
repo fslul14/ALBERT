@@ -54,8 +54,16 @@ def test_authorized_by_missing_or_blank(value: str) -> None:
 
 @pytest.mark.parametrize(
     "host",
-    ['"https://example.com"', '"example.com/path"', '"example.com:8443"', '"*.example.com"',
-     '"-bad.com"', '"exa mple.com"', '""', "42"],
+    [
+        '"https://example.com"',
+        '"example.com/path"',
+        '"example.com:8443"',
+        '"*.example.com"',
+        '"-bad.com"',
+        '"exa mple.com"',
+        '""',
+        "42",
+    ],
 )
 def test_malformed_host(host: str) -> None:
     with pytest.raises(ScopeError, match="target #1"):

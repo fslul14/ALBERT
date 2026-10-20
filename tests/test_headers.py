@@ -47,6 +47,7 @@ def test_bare_apache() -> None:
         "HDR-ETAG-INODE",
         "HDR-DEPRECATED-X-XSS-PROTECTION",
         "HDR-CACHE-PUBLIC-SET-COOKIE",
+        "HDR-PROTOCOLS",
     }
     banner = next(f for f in found if f.id == "HDR-VERSION-BANNER")
     assert {e.location for e in banner.evidence} == {"server", "x-powered-by"}
@@ -157,3 +158,14 @@ def test_sensitive_cache_and_lab_private_ip() -> None:
     assert h.check_cache_control(resp("https://x.test/blog/post")) == []
     lab = resp("http://localhost:3000/", X_Upstream="10.0.0.5:3000")
     assert ids(h.check_leaky_headers(lab)) == {"HDR-BACKEND-DISCLOSED"}
+
+
+def test_protocols_http11_not_observed() -> None:
+    (f,) = h.check_protocols(resp())
+    assert [e.value for e in f.evidence] == [
+        "HTTP/2: not observed (client is HTTP/1.1-only)",
+        "HTTP/3: not advertised (no h3 in Alt-Svc)",
+    ]
+    (f,) = h.check_protocols(resp(Alt_Svc='h3=":443"; ma=86400, h2=":443"'))
+    assert f.evidence[0].value == "HTTP/2: advertised via Alt-Svc"
+    assert f.evidence[1].value == "HTTP/3: advertised via Alt-Svc"
