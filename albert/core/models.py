@@ -15,6 +15,7 @@ from albert.core.secrets import redact
 _H = TypeVar("_H", bound=Hashable)
 
 ScanMode = Literal["quick", "scan", "active"]
+REPORT_SCHEMA_VERSION = 1  # bump when the JSON report shape changes (diffs refuse mismatches)
 
 
 class _Level(IntEnum):

@@ -1,0 +1,138 @@
+{
+ "schema_version": 1,
+ "generated_at": "2026-10-01T09:00:00+00:00",
+ "started_at": "2026-10-01T09:00:00+00:00",
+ "tool": {
+  "name": "albert",
+  "version": "0.0.1",
+  "rules": "21 rules"
+ },
+ "target": {
+  "url": "https://site.test/",
+  "host": "site.test",
+  "mode": "scan",
+  "authorized_by": "self",
+  "scope_date": "2026-10-20",
+  "allow_active": false
+ },
+ "checks_run": [
+  "headers",
+  "cookies",
+  "tls",
+  "cve",
+  "privacy",
+  "dns_email"
+ ],
+ "findings": [
+  {
+   "id": "HDR-CSP-MISSING",
+   "title": "Content-Security-Policy missing",
+   "severity": "medium",
+   "confidence": "high",
+   "urls": [
+    "https://site.test/",
+    "https://site.test/a"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  },
+  {
+   "id": "HDR-HSTS-MISSING",
+   "title": "Strict-Transport-Security missing",
+   "severity": "medium",
+   "confidence": "high",
+   "urls": [
+    "https://site.test/"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  },
+  {
+   "id": "COOKIE-NO-HTTPONLY-PHPSESSID",
+   "title": "Cookie 'PHPSESSID': missing HttpOnly",
+   "severity": "medium",
+   "confidence": "high",
+   "urls": [
+    "https://site.test/"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  },
+  {
+   "id": "HDR-REFERRER-UNSAFE",
+   "title": "Referrer-Policy leaks full URLs",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://site.test/"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  },
+  {
+   "id": "VULN-CVE-2020-11022-jQuery",
+   "title": "jQuery 3.4.1 affected by CVE-2020-11022",
+   "severity": "medium",
+   "confidence": "high",
+   "urls": [
+    "https://site.test/"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  },
+  {
+   "id": "DNS-DMARC-MISSING",
+   "title": "No DMARC record",
+   "severity": "medium",
+   "confidence": "high",
+   "urls": [
+    "dns:site.test"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  }
+ ],
+ "posture_notes": [
+  {
+   "id": "HDR-CDN-WAF",
+   "title": "CDN/WAF detected: Cloudflare",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://site.test/"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  },
+  {
+   "id": "PRIV-THIRD-PARTY-ORIGINS",
+   "title": "Pages load resources from 3 third-party origin(s)",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://site.test/"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  }
+ ],
+ "summary": {},
+ "appendix": {},
+ "notes": []
+}

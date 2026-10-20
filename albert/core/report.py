@@ -14,10 +14,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from albert.core.models import Finding, ScanResult, Severity
+from albert.core.diff import diff_reports
+from albert.core.models import REPORT_SCHEMA_VERSION, Finding, ScanResult, Severity
 from albert.core.secrets import redact
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = REPORT_SCHEMA_VERSION
 MAX_MD_URLS = 10
 _WEIGHTS = {Severity.CRITICAL: 40, Severity.HIGH: 20, Severity.MEDIUM: 8, Severity.LOW: 2}
 _GRADES = ((90, "A"), (75, "B"), (60, "C"), (40, "D"), (0, "F"))
@@ -41,8 +42,9 @@ def posture(findings: Sequence[Finding]) -> dict[str, Any]:
     return {"score": score, "grade": grade}
 
 
-def build_report_data(result: ScanResult) -> dict[str, Any]:
-    """The single source for both formats; already redacted."""
+def build_report_data(result: ScanResult, prior: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The single source for both formats; already redacted. With ``prior`` (a validated prior
+    report JSON, see core/diff.load_prior) it also carries the "diff" section."""
     grouped = result.grouped_findings()
     full = [f for f in grouped if f.severity > Severity.INFO]
     info = [f for f in grouped if f.severity == Severity.INFO]
@@ -76,7 +78,10 @@ def build_report_data(result: ScanResult) -> dict[str, Any]:
         },
         "notes": list(result.notes),
     }
-    return _sweep(data)  # type: ignore[no-any-return]
+    swept: dict[str, Any] = _sweep(data)
+    if prior is not None:
+        swept["diff"] = diff_reports(prior, swept)
+    return swept
 
 
 # --- Markdown -----------------------------------------------------------------------------
@@ -154,6 +159,48 @@ def _md_summary(d: dict[str, Any]) -> list[str]:
     else:
         lines.append("No Low-or-higher issues found.")
     return [*lines, ""]
+
+
+def _md_diff(diff: dict[str, Any] | None) -> list[str]:
+    if diff is None:
+        return []
+    c = diff["counts"]
+    since = diff["prior"].get("started_at") or "the prior scan"
+    lines = [
+        "## Changes since last scan",
+        "",
+        f"Compared with the scan started {since}.",
+        "",
+        "| New | Resolved | Changed | Unchanged | Not re-checked |",
+        "|---|---|---|---|---|",
+        f"| {c['new']} | {c['resolved']} | {c['changed']} | {c['unchanged']} "
+        f"| {c['not_rechecked']} |",
+        "",
+    ]
+    labels = (
+        ("new", "New"),
+        ("resolved", "Resolved"),
+        ("changed", "Changed"),
+        ("not_rechecked", "Not re-checked this run (check didn't run)"),
+    )
+    for key, label in labels:
+        if not diff[key]:
+            continue
+        lines += [f"**{label}:**", ""]
+        for f in diff[key]:
+            detail = ""
+            if key == "changed":
+                parts = [
+                    f"{k} {v[0]} -> {v[1]}" for k, v in f.items() if k in ("severity", "confidence")
+                ]
+                if f.get("urls_added"):
+                    parts.append(f"+{len(f['urls_added'])} URL(s)")
+                if f.get("urls_removed"):
+                    parts.append(f"-{len(f['urls_removed'])} URL(s)")
+                detail = f" ({'; '.join(parts)})"
+            lines.append(f"- {_code(f['id'])} {_text(f['title'])} [{f['severity']}]{detail}")
+        lines.append("")
+    return lines
 
 
 def _md_finding(n: int, f: dict[str, Any]) -> list[str]:
@@ -256,6 +303,7 @@ def render_markdown(data: dict[str, Any]) -> str:
         "",
         *_md_header(data),
         *_md_summary(data),
+        *_md_diff(data.get("diff")),
         *_md_findings(data),
         *_md_posture_notes(data),
         *_md_appendix(data),
@@ -273,13 +321,16 @@ def report_stem(result: ScanResult) -> str:
 
 
 def write_report(
-    result: ScanResult, out_dir: Path = Path("reports"), formats: Sequence[str] = ("md", "json")
+    result: ScanResult,
+    out_dir: Path = Path("reports"),
+    formats: Sequence[str] = ("md", "json"),
+    prior: dict[str, Any] | None = None,
 ) -> list[Path]:
     """Write the report files; never overwrites (adds _2, _3... on a same-minute rerun)."""
     unknown = set(formats) - {"md", "json"}
     if unknown:
         raise ValueError(f"unknown report format(s): {', '.join(sorted(unknown))}")
-    data = build_report_data(result)
+    data = build_report_data(result, prior)
     out_dir.mkdir(parents=True, exist_ok=True)
     stem, n = report_stem(result), 1
     while any((out_dir / f"{stem}{'' if n == 1 else f'_{n}'}.{fmt}").exists() for fmt in formats):

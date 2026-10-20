@@ -7,6 +7,7 @@ import asyncio
 import sys
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 from albert import __version__
 from albert.checks.fingerprint import SIGNATURES_PATH, lint_signatures
@@ -14,9 +15,10 @@ from albert.checks.privacy import TRACKERS_PATH, lint_trackers
 from albert.config import DEFAULT_SCOPE_PATH, Scope, ScopeError, append_scope_entry, load_scope
 from albert.core.browser import RenderLimits
 from albert.core.crawler import CrawlLimits, state_path_for
+from albert.core.diff import DiffError, load_prior
 from albert.core.engine import RULES_DIR, lint_rules
 from albert.core.models import ScanResult, Target
-from albert.core.report import write_report
+from albert.core.report import build_report_data, write_report
 from albert.core.vulndb import default_cache_dir
 from albert.quick import run_quick, run_tls_only
 from albert.scan import run_scan
@@ -49,6 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--max-depth", type=int, default=CrawlLimits.max_depth)
     scan.add_argument("--rate", type=float, default=2.0, help="requests/second to the host")
     scan.add_argument("--resume", action="store_true", help="continue an interrupted scan")
+    scan.add_argument("--diff", type=Path, help="prior JSON report of the same host to compare")
     scan.add_argument("--render", action="store_true", help="render pages in headless Chromium")
     scan.add_argument("--render-max", type=int, default=RenderLimits.max_pages)
     scan.add_argument(
@@ -106,10 +109,18 @@ def _formats(args: argparse.Namespace) -> list[str]:
     return [f.strip() for f in args.format.split(",") if f.strip()]
 
 
-def _finish(result: ScanResult, args: argparse.Namespace) -> int:
-    paths = write_report(result, args.out, _formats(args))
+def _finish(
+    result: ScanResult, args: argparse.Namespace, prior: dict[str, Any] | None = None
+) -> int:
+    paths = write_report(result, args.out, _formats(args), prior)
     counts = ", ".join(f"{n} {sev}" for sev, n in result.severity_counts().items() if n)
     print(f"{result.target.host}: {counts or 'no findings'} ({len(result.pages)} pages)")
+    if prior is not None:
+        c = build_report_data(result, prior)["diff"]["counts"]
+        print(
+            f"  vs prior: {c['new']} new, {c['resolved']} resolved, {c['changed']} changed, "
+            f"{c['unchanged']} unchanged, {c['not_rechecked']} not re-checked"
+        )
     for err in result.errors:
         print(f"  error: {err}", file=sys.stderr)
     for path in paths:
@@ -149,6 +160,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             print("cancelled: no authorization recorded", file=sys.stderr)
             return 2
         target = scope.target(url, "scan")
+        prior = load_prior(args.diff, target.host, "scan") if args.diff else None
         limits = CrawlLimits(max_pages=args.max_pages, max_depth=args.max_depth)
         result = asyncio.run(
             run_scan(
@@ -164,8 +176,8 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 scope_hosts=frozenset(e.host for e in scope.entries),
             )
         )
-        return _finish(result, args)
-    except (ValueError, ScopeError) as e:
+        return _finish(result, args, prior)
+    except (ValueError, ScopeError, DiffError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
 

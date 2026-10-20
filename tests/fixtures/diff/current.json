@@ -1,0 +1,140 @@
+{
+ "schema_version": 1,
+ "generated_at": "2026-10-20T09:00:00+00:00",
+ "started_at": "2026-10-20T09:00:00+00:00",
+ "tool": {
+  "name": "albert",
+  "version": "0.0.1",
+  "rules": "21 rules"
+ },
+ "target": {
+  "url": "https://site.test/",
+  "host": "site.test",
+  "mode": "scan",
+  "authorized_by": "self",
+  "scope_date": "2026-10-20",
+  "allow_active": false
+ },
+ "checks_run": [
+  "headers",
+  "cookies",
+  "tls",
+  "cve",
+  "privacy",
+  "rendered",
+  "js"
+ ],
+ "findings": [
+  {
+   "id": "HDR-CSP-MISSING",
+   "title": "Content-Security-Policy missing",
+   "severity": "medium",
+   "confidence": "high",
+   "urls": [
+    "https://site.test/",
+    "https://site.test/a"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  },
+  {
+   "id": "COOKIE-NO-HTTPONLY-PHPSESSID",
+   "title": "Cookie 'PHPSESSID': missing HttpOnly",
+   "severity": "medium",
+   "confidence": "high",
+   "urls": [
+    "https://site.test/",
+    "https://site.test/login"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  },
+  {
+   "id": "HDR-REFERRER-UNSAFE",
+   "title": "Referrer-Policy leaks full URLs",
+   "severity": "medium",
+   "confidence": "high",
+   "urls": [
+    "https://site.test/"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  },
+  {
+   "id": "VULN-CVE-2020-11022-jQuery",
+   "title": "jQuery 3.4.1 affected by CVE-2020-11022",
+   "severity": "medium",
+   "confidence": "low",
+   "urls": [
+    "https://site.test/"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  },
+  {
+   "id": "RND-SCRIPT-NO-SRI",
+   "title": "Third-party script loaded without SRI",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://site.test/"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  },
+  {
+   "id": "JS-SECRET-AWS_ACCESS_KEY_ID",
+   "title": "Secret in JavaScript (aws_access_key_id)",
+   "severity": "high",
+   "confidence": "high",
+   "urls": [
+    "https://site.test/"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  }
+ ],
+ "posture_notes": [
+  {
+   "id": "HDR-CDN-WAF",
+   "title": "CDN/WAF detected: Fastly",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://site.test/"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  },
+  {
+   "id": "PRIV-THIRD-PARTY-ORIGINS",
+   "title": "Pages load resources from 5 third-party origin(s)",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://site.test/"
+   ],
+   "evidence": [],
+   "impact": "",
+   "remediation": "",
+   "refs": []
+  }
+ ],
+ "summary": {},
+ "appendix": {},
+ "notes": []
+}
