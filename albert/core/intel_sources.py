@@ -99,6 +99,9 @@ async def _wayback(client: IntelClient, domain: str) -> dict[str, Any]:
             "fl": "original,timestamp,statuscode",
             "collapse": "urlkey",
             "limit": str(MAX_WAYBACK),
+            # Live check: unfiltered results for busy domains are mostly 404s and revisit
+            # records ("-"); only URLs that once served content are worth reporting.
+            "filter": "statuscode:200",
         },
     )
     if not isinstance(rows, list) or not rows:

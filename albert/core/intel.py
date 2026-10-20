@@ -20,7 +20,7 @@ from albert import __version__
 from albert.core.models import DnsAnswer
 from albert.core.scope import OutOfScopeError, normalize_host
 
-USER_AGENT = f"Albert/{__version__} (vulnerability lookup; +https://github.com/fslul14/ALBERT)"
+USER_AGENT = f"Albert/{__version__} (third-party intel lookup; +https://github.com/fslul14/ALBERT)"
 
 # service host -> method -> allowed exact paths
 INTEL_ENDPOINTS: dict[str, dict[str, tuple[str, ...]]] = {

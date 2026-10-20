@@ -8,6 +8,7 @@ of one needs its own scope.toml entry.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from urllib.parse import urlsplit
 
@@ -17,6 +18,12 @@ from albert.core.models import Confidence, Evidence, Finding, Severity
 
 S, C = Severity, Confidence
 MAX_EVIDENCE = 60
+# Archive junk seen live: template placeholders and stray quotes ("$pkgver", "%22", "{id}").
+_PLACEHOLDER = re.compile(r"[$\"{}<>]|%22|%24|%7[bBdD]|%3[cCeE]")
+
+
+def _clip(url: str, limit: int = 200) -> str:
+    return url if len(url) <= limit else url[:limit] + "..."
 
 
 def _f(
@@ -63,16 +70,25 @@ def intel_findings(report: IntelReport, in_scope: Callable[[str], bool]) -> list
             )
         elif r.source == "wayback" and r.data.get("urls"):
             urls = r.data["urls"]
-            sensitive = [u for u in urls if SENSITIVE_PATH.search(urlsplit(u["url"]).path)]
+            sensitive = [
+                u
+                for u in urls
+                if not _PLACEHOLDER.search(u["url"])
+                and SENSITIVE_PATH.search(urlsplit(u["url"]).path)
+            ]
             ev = [
                 Evidence(
                     "wayback",
-                    f"{u['url']} ({u['timestamp'][:8]}, HTTP {u['status']})",
+                    f"{_clip(u['url'])} ({u['timestamp'][:8]}, HTTP {u['status']})",
                     "sensitive-looking path",
                 )
                 for u in sensitive
             ]
-            ev += [Evidence("wayback", f"{len(urls)} archived URL(s) in total", "summary")]
+            ev += [
+                Evidence(
+                    "wayback", f"{len(urls)} archived URL(s) that returned HTTP 200", "summary"
+                )
+            ]
             out.append(
                 _f(
                     "INTEL-WAYBACK-URLS",

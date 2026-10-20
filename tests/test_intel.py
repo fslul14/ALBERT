@@ -89,7 +89,11 @@ async def test_wayback_highlights_sensitive_paths(tmp_path: Path) -> None:
     values = [e.value for e in f.evidence]
     assert any("backup.zip" in v for v in values) and any("/admin/login" in v for v in values)
     assert not any("/blog/hello" in v for v in values)
-    assert values[-1] == "4 archived URL(s) in total"
+    assert values[-1] == "6 archived URL(s) that returned HTTP 200"
+    assert not any("$pkgver" in v for v in values)  # template junk (seen live) is not "sensitive"
+    assert all(len(v) < 300 for v in values)  # multi-KB archived URLs are clipped
+    wayback = next(c for c in respx.calls if c.request.url.host == "web.archive.org")
+    assert parse_qs(wayback.request.url.query.decode())["filter"] == ["statuscode:200"]
 
 
 @respx.mock
