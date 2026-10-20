@@ -15,13 +15,22 @@ from pathlib import Path
 from typing import Any
 
 from albert.core.diff import diff_reports
-from albert.core.models import REPORT_SCHEMA_VERSION, Finding, ScanResult, Severity
+from albert.core.models import REPORT_SCHEMA_VERSION, Confidence, Finding, ScanResult, Severity
 from albert.core.secrets import redact
 
 SCHEMA_VERSION = REPORT_SCHEMA_VERSION
 MAX_MD_URLS = 10
-_WEIGHTS = {Severity.CRITICAL: 40, Severity.HIGH: 20, Severity.MEDIUM: 8, Severity.LOW: 2}
-_GRADES = ((90, "A"), (75, "B"), (60, "C"), (40, "D"), (0, "F"))
+# Posture grading (documented in docs/modules/report.md):
+# - Each severity has a weight: the most ONE finding of it can cost.
+# - Repeats within a severity cost half the previous one (geometric), so a severity costs at
+#   most 2x its weight: twenty Lows can never outweigh one High.
+# - Each penalty is scaled by confidence.
+# - Caps: a Critical (confidence >= Medium) limits the grade to D, a High to C, whatever the
+#   score, so one serious issue can't hide behind an otherwise clean site. Info costs nothing.
+_WEIGHTS = {Severity.CRITICAL: 40.0, Severity.HIGH: 25.0, Severity.MEDIUM: 10.0, Severity.LOW: 3.0}
+_CONFIDENCE = {Confidence.HIGH: 1.0, Confidence.MEDIUM: 0.75, Confidence.LOW: 0.5}
+_GRADES = ((92, "A"), (80, "B"), (65, "C"), (50, "D"), (0, "F"))
+_CAPS = ((Severity.CRITICAL, "D"), (Severity.HIGH, "C"))
 
 
 def _sweep(obj: Any) -> Any:
@@ -36,10 +45,26 @@ def _sweep(obj: Any) -> Any:
 
 
 def posture(findings: Sequence[Finding]) -> dict[str, Any]:
-    """Provisional 0-100 score and letter grade from grouped non-info findings (refined later)."""
-    score = max(0, 100 - sum(_WEIGHTS.get(f.severity, 0) for f in findings))
+    """0-100 score and letter grade from grouped findings (see the rules above)."""
+    penalties: dict[str, float] = {}
+    for severity, weight in _WEIGHTS.items():
+        same = sorted(
+            (f for f in findings if f.severity == severity),
+            key=lambda f: f.confidence,
+            reverse=True,
+        )
+        cost = sum(weight * _CONFIDENCE[f.confidence] * 0.5**k for k, f in enumerate(same))
+        if cost:
+            penalties[severity.label] = round(cost, 1)
+    score = max(0, round(100 - sum(penalties.values())))
     grade = next(g for floor, g in _GRADES if score >= floor)
-    return {"score": score, "grade": grade}
+    capped_by = None
+    for severity, cap in _CAPS:
+        if any(f.severity == severity and f.confidence >= Confidence.MEDIUM for f in findings):
+            if "ABCDF".index(grade) < "ABCDF".index(cap):
+                grade, capped_by = cap, severity.label
+            break
+    return {"score": score, "grade": grade, "capped_by": capped_by, "penalties": penalties}
 
 
 def build_report_data(result: ScanResult, prior: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -142,8 +167,13 @@ def _md_summary(d: dict[str, Any]) -> list[str]:
     lines = [
         "## Executive summary",
         "",
-        f"**Posture grade: {s['posture']['grade']}** "
-        f"(score {s['posture']['score']}/100, provisional rubric)",
+        f"**Posture grade: {s['posture']['grade']}** (score {s['posture']['score']}/100"
+        + (
+            f"; capped by a {s['posture']['capped_by']} finding"
+            if s["posture"]["capped_by"]
+            else ""
+        )
+        + ")",
         "",
         "| Severity | Count |",
         "|---|---|",

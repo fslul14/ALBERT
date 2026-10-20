@@ -282,3 +282,26 @@ def test_plain_scan_has_no_intel(tmp_path: Path) -> None:
     main(["scan", f"https://{D}/", "--scope", str(scope), "--out", str(tmp_path), "--rate", "0"])
     data = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
     assert "intel" not in data["checks_run"] and not crt.called
+
+
+@respx.mock
+async def test_intel_client_refuses_target_and_unlisted_hosts_before_sending() -> None:
+    """Behavioural teeth for IntelPolicy: a bad destination never reaches the network."""
+    from albert.core.intel import IntelClient
+
+    target = respx.route(host=D).mock(return_value=httpx.Response(200, json={}))
+    other = respx.route(host="evil.example").mock(return_value=httpx.Response(200, json={}))
+    async with IntelClient(IntelPolicy([D])) as client:
+        for url in (f"https://{D}/", "https://evil.example/cdx/search/cdx", f"{CRT_SH}x"):
+            with pytest.raises(OutOfScopeError):
+                await client.get_json(url)
+    assert not target.called and not other.called
+
+
+async def test_intel_dns_refuses_non_blocklist_names_before_resolving() -> None:
+    dnsbl = FakeDnsbl()
+    dns = IntelDns(dnsbl)
+    for name in (D, "evil.example", "dbl.spamhaus.org"):
+        with pytest.raises(OutOfScopeError):
+            await dns.query(name)
+    assert dnsbl.asked == []

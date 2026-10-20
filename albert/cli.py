@@ -49,6 +49,12 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--scope", type=Path, default=DEFAULT_SCOPE_PATH, help="scope file")
     scan.add_argument("--max-pages", type=int, default=CrawlLimits.max_pages)
     scan.add_argument("--max-depth", type=int, default=CrawlLimits.max_depth)
+    scan.add_argument(
+        "--max-scripts",
+        type=int,
+        default=CrawlLimits.max_scripts,
+        help="same-host <script src> files fetched for JS analysis (0 disables)",
+    )
     scan.add_argument("--rate", type=float, default=2.0, help="requests/second to the host")
     scan.add_argument("--resume", action="store_true", help="continue an interrupted scan")
     scan.add_argument("--diff", type=Path, help="prior JSON report of the same host to compare")
@@ -161,7 +167,11 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             return 2
         target = scope.target(url, "scan")
         prior = load_prior(args.diff, target.host, "scan") if args.diff else None
-        limits = CrawlLimits(max_pages=args.max_pages, max_depth=args.max_depth)
+        if min(args.max_pages, args.max_depth, args.max_scripts) < 0:
+            raise ValueError("--max-pages/--max-depth/--max-scripts must be >= 0")
+        limits = CrawlLimits(
+            max_pages=args.max_pages, max_depth=args.max_depth, max_scripts=args.max_scripts
+        )
         result = asyncio.run(
             run_scan(
                 target,

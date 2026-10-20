@@ -193,6 +193,15 @@ def visible_text(html: str, *, strip_code: bool) -> str:
     return root.text(separator="\n") if root else ""
 
 
+def markup_without_scripts(html: str) -> str:
+    """HTML with <script> elements removed. Script contents belong to checks/js.py, so
+    markup-level checks skip them and the same issue isn't reported twice."""
+    tree = LexborHTMLParser(html)
+    for node in tree.css("script"):
+        node.decompose()
+    return tree.html or ""
+
+
 def _scan_text(resp: CollectedResponse) -> tuple[str, Confidence]:
     """Text to search for traces/errors/paths, and how sure a hit is."""
     error = resp.status >= 400
@@ -428,8 +437,9 @@ def check_source_leaks(resp: CollectedResponse) -> list[Finding]:
     src = resp.text
     out = []
     if not is_lab_host(resp.url):
+        markup = markup_without_scripts(src)  # inline scripts: JS-INTERNAL-URL
         hosts = dict.fromkeys(
-            [m.group(1).lower() for m in INTERNAL_HOST.finditer(src)] + LOCAL_URL.findall(src)
+            [m.group(1).lower() for m in INTERNAL_HOST.finditer(markup)] + LOCAL_URL.findall(markup)
         )
         if hosts:
             out.append(

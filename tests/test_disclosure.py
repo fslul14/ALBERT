@@ -76,8 +76,15 @@ def test_comments_and_source_leaks() -> None:
     notes = [e.value for e in found["DISC-DEV-COMMENT"].evidence]
     assert any("TODO" in n for n in notes) and any("FIXME" in n for n in notes)
     assert not any("Footer" in n or "[if" in n for n in notes)
+    # Markup/comments only: hosts inside inline <script> belong to JS-INTERNAL-URL (checks/js.py).
     hosts = {e.value for e in found["DISC-INTERNAL-HOST"].evidence}
-    assert {"db01.corp.internal", "jenkins.corp.internal", "http://localhost:3000/debug"} <= hosts
+    assert hosts == {"db01.corp.internal"}
+    from albert.checks.js import run_js_checks
+
+    js = {f.id: f for f in run_js_checks([load("comments.html")], [])}
+    assert {"jenkins.corp.internal", "http://localhost:3000/debug"} <= {
+        e.value for e in js["JS-INTERNAL-URL"].evidence
+    }
     assert [e.value for e in found["DISC-EMAIL"].evidence] == ["support@shop.test"]
     apis = [e.value for e in found["DISC-API-ENDPOINT"].evidence]
     assert apis == ["/api/v1/orders", "https://api.shop.test/graphql"]

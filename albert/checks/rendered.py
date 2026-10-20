@@ -10,6 +10,7 @@ from urllib.parse import urljoin, urlsplit
 
 from selectolax.lexbor import LexborHTMLParser
 
+from albert.checks.disclosure import markup_without_scripts
 from albert.checks.headers import check_csp, meta_csp
 from albert.core.models import (
     CollectedResponse,
@@ -159,7 +160,9 @@ def check_forms(page: RenderedPage) -> list[Finding]:
         scheme = urlsplit(action).scheme
         if scheme == "http" and not http_page:  # HTTP pages: covered by TLS + password check
             insecure.append((action, has_pw))
-        if scheme in ("http", "https") and _origin(action)[:2] != page_origin[:2]:
+        # Another *site*: a scheme-only change (http form on an https page) is the
+        # HTTP-action finding above, not a cross-origin post.
+        if scheme in ("http", "https") and _origin(action)[1] != page_origin[1]:
             cross.append((action, has_pw))
     if insecure:
         pw = any(p for _, p in insecure)
@@ -295,18 +298,19 @@ def check_blank_targets(page: RenderedPage) -> list[Finding]:
 
 
 def check_dom_secrets(page: RenderedPage) -> list[Finding]:
-    """Known secret formats visible in the rendered DOM (evidence is redacted)."""
+    """Known secret formats in the rendered markup outside <script> (evidence is redacted)."""
     if not page.dom:
         return []
+    markup = markup_without_scripts(page.dom)  # script contents: JS-SECRET-* (checks/js.py)
     out = []
     for pat in PATTERNS:
         if pat.name == "generic_secret":
             continue  # too noisy in markup; JS analysis (step 14) handles assignments
-        matches = list(pat.regex.finditer(page.dom))
+        matches = list(pat.regex.finditer(markup))
         if not matches:
             continue
         snippets = [
-            re.sub(r"\s+", " ", page.dom[max(0, m.start() - 30) : m.end() + 10]) for m in matches
+            re.sub(r"\s+", " ", markup[max(0, m.start() - 30) : m.end() + 10]) for m in matches
         ]
         out.append(
             _finding(

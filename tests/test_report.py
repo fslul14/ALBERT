@@ -109,5 +109,75 @@ def test_quick_mode_header_and_empty_findings(tmp_path: Path) -> None:
     md, data = _write(tmp_path, r)
     assert "none (quick mode" in md
     assert "No Low-or-higher findings." in md
-    assert data["summary"]["posture"] == {"score": 100, "grade": "A"}
+    assert (data["summary"]["posture"]["score"], data["summary"]["posture"]["grade"]) == (100, "A")
     assert build_report_data(r)["target"]["mode"] == "quick"
+
+
+# --- posture grading -------------------------------------------------------------------------
+
+from albert.core.engine import run_family  # noqa: E402
+from albert.core.report import posture  # noqa: E402
+
+HEADERS = Path(__file__).parent / "fixtures" / "headers"
+
+
+def _fixture_findings(name: str, url: str = "https://shop.test/account/login") -> list[Finding]:
+    from albert.core.models import CollectedResponse
+
+    lines = [
+        ln
+        for ln in (HEADERS / name).read_text(encoding="utf-8").splitlines()
+        if ln.strip() and not ln.startswith("#")
+    ]
+    version, status = lines[0].split()[:2]
+    pairs = tuple((k.strip(), v.strip()) for k, _, v in (ln.partition(":") for ln in lines[1:]))
+    resp = CollectedResponse(url, int(status), pairs, version)
+    return run_family("headers", [resp]) + run_family("cookies", [resp])
+
+
+def _grade(findings: list[Finding]) -> str:
+    return str(posture([f for f in findings if f.severity > Severity.INFO])["grade"])
+
+
+def test_hardened_site_grades_a() -> None:
+    assert _grade(_fixture_findings("hardened.txt", "https://secure.test/")) == "A"
+
+
+def test_weak_sites_grade_poorly() -> None:
+    bare = posture([f for f in _fixture_findings("bare_apache.txt") if f.severity > Severity.INFO])
+    weak = posture(
+        [
+            f
+            for f in _fixture_findings("weak.txt", "https://app.test/")
+            if f.severity > Severity.INFO
+        ]
+    )
+    assert bare["grade"] in ("C", "D") and weak["grade"] in ("C", "D")
+    assert bare["score"] < 80 and weak["score"] < 80
+
+
+def _graded(sev: Severity, conf: Confidence = Confidence.HIGH, n: int = 0) -> Finding:
+    return Finding(f"X-{sev.label}-{n}", "t", sev, conf, ("https://x.test/",))
+
+
+def test_severity_caps() -> None:
+    one_high = posture([_graded(Severity.HIGH)])
+    assert one_high["score"] == 75 and one_high["grade"] == "C"  # 75 alone would already be C
+    assert posture([_graded(Severity.CRITICAL)])["grade"] == "D"  # score 60: D on its own
+    medium_conf = posture([_graded(Severity.CRITICAL, Confidence.MEDIUM)])
+    assert (medium_conf["score"], medium_conf["grade"], medium_conf["capped_by"]) == (
+        70,
+        "D",
+        "critical",
+    )
+    low_conf_high = posture([_graded(Severity.HIGH, Confidence.LOW)])
+    assert low_conf_high["capped_by"] is None and low_conf_high["grade"] == "B"  # 87.5
+
+
+def test_diminishing_repeats_and_confidence() -> None:
+    lows = posture([_graded(Severity.LOW, n=i) for i in range(20)])
+    assert lows["score"] >= 94 and lows["grade"] == "A"  # 20 Lows cost < 6 points
+    assert posture([_graded(Severity.MEDIUM)])["grade"] == "B"  # one Medium: 90
+    assert posture([_graded(Severity.MEDIUM, Confidence.LOW)])["score"] == 95
+    many_medium = posture([_graded(Severity.MEDIUM, n=i) for i in range(10)])["score"]
+    assert many_medium > posture([_graded(Severity.HIGH)])["score"] - 10  # 10 Mediums ~ one High

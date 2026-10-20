@@ -46,7 +46,9 @@ def test_forms_on_https_page() -> None:
     assert found["RND-FORM-HTTP-ACTION"].severity is Severity.HIGH  # carries a password field
     assert [e.value for e in found["RND-FORM-HTTP-ACTION"].evidence] == ["http://shop.test/login"]
     cross = [e.value for e in found["RND-FORM-CROSS-ORIGIN"].evidence]
-    assert cross == ["http://shop.test/login", "https://newsletter.other.test/subscribe"]
+    # http://shop.test/login is the same site (only the scheme differs): that's the HTTP-action
+    # finding above, not a cross-origin post, so it isn't counted twice.
+    assert cross == ["https://newsletter.other.test/subscribe"]
     assert "RND-PASSWORD-ON-HTTP" not in found
 
 
@@ -74,8 +76,8 @@ def test_dom_secrets_redacted() -> None:
     stripe = "sk" + "_live_" + "4" * 24
     dom = f'<div data-aws="AKIAIOSFODNN7EXAMPLE"></div><script>var k="{stripe}";</script>'
     found = by_id(check_dom_secrets(RenderedPage("https://shop.test/", "https://shop.test/", dom)))
-    assert found["RND-SECRET-AWS_ACCESS_KEY_ID"].severity is Severity.HIGH
-    assert found["RND-SECRET-STRIPE_KEY"].severity is Severity.HIGH
+    assert found["RND-SECRET-AWS_ACCESS_KEY_ID"].severity is Severity.HIGH  # in markup
+    assert "RND-SECRET-STRIPE_KEY" not in found  # inside <script>: owned by JS-SECRET-*
     text = str([f.to_dict() for f in found.values()])
     assert "AKIAIOSFODNN7EXAMPLE" not in text and stripe not in text
 

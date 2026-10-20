@@ -17,6 +17,7 @@ Owner: Frenki, cybersecurity specialist (Python). Fresh rebuild on Windows; the 
 - **Respect blocks, never evade** (WAF/CAPTCHA/rate-limit/`robots.txt` disallow → record and back off; no UA rotation, proxy cycling, or fingerprint spoofing).
 - **Polite**: per-host rate limit, concurrency cap, timeouts, request budget, honest self-identifying User-Agent.
 - **Active module is separate, off by default, triple-gated** (see below). Nothing in it runs in a normal scan.
+- **Live targets need explicit OK during development.** Before Claude Code connects to any live network target (test hosts included: badssl.com, lab containers on other machines, third-party APIs like OSV/NVD/crt.sh/Wayback), it names the exact hosts/endpoints and the requests, and waits for an explicit OK. Tests stay hermetic: no live host, DNS lookup or API call, ever (enforced by `tests/conftest.py`).
 
 If an idea drifts active, flag it and put it in the active module or Parking lot — never silently into passive code.
 
@@ -138,31 +139,31 @@ Triple-gated: `--i-have-authorization` flag **and** `allow_active=true` on the s
 ## Roadmap
 
 **Phase 1 — core**
-- [ ] 0. Setup: venv, layout, `.gitignore` (`reports/`, `scope.toml`, `.venv/`, `__pycache__/`, `.playwright`), `pyproject.toml`, `scan` slash command, Juice Shop in Docker.
-- [ ] 1. Models (Finding/Severity/Confidence/Evidence/ScanResult/Target) + `secrets.py` regexes.
-- [ ] 2. Scope config.
-- [ ] 3. `scope.py` + async `http_client.py` (test: off-scope raises before any socket; per-host limiter isn't shared).
-- [ ] 4. Security-headers checks (incl. NEW header signals).
-- [ ] 5. Report writer (MD+JSON) with redaction backstop; wire headers module.
-- [ ] 6. `quick` subcommand (headers + cert + DNS/email + security.txt, single page) — usable on any URL early.
-- [ ] 7. Async crawler (robots, sitemap, dedup, caps, traps, resume).
-- [ ] 8. Cookie checks.
-- [ ] 9. Info-disclosure checks.
-- [ ] 10. TLS/cert module (+ sslyze non-intrusive backend).
-- [ ] 11. `browser.py` + rendered-content checks.
-- [ ] 12. CORS + misc headers.
-- [ ] 13. `rules/` engine; move pattern checks to YAML.
+- [x] 0. Setup: venv, layout, `.gitignore` (`reports/`, `scope.toml`, `.venv/`, `__pycache__/`, `.playwright`), `pyproject.toml`, `scan` slash command, Juice Shop in Docker. *(Juice Shop pending: Docker not installed on this machine.)*
+- [x] 1. Models (Finding/Severity/Confidence/Evidence/ScanResult/Target) + `secrets.py` regexes.
+- [x] 2. Scope config.
+- [x] 3. `scope.py` + async `http_client.py` (test: off-scope raises before any socket; per-host limiter isn't shared).
+- [x] 4. Security-headers checks (incl. NEW header signals).
+- [x] 5. Report writer (MD+JSON) with redaction backstop; wire headers module.
+- [x] 6. `quick` subcommand (headers + cert + DNS/email + security.txt, single page) — usable on any URL early.
+- [x] 7. Async crawler (robots, sitemap, dedup, caps, traps, resume).
+- [x] 8. Cookie checks.
+- [x] 9. Info-disclosure checks.
+- [x] 10. TLS/cert module (+ sslyze non-intrusive backend).
+- [x] 11. `browser.py` + rendered-content checks.
+- [x] 12. CORS + misc headers.
+- [x] 13. `rules/` engine; move pattern checks to YAML.
 
 **Phase 2 — advanced passive**
-- [ ] 14. JS bundle analysis (secrets redacted, source maps, internals).
-- [ ] 15. Fingerprinting (signatures + favicon hash).
-- [ ] 16. CVE matching (OSV/NVD, cached, confidence).
-- [ ] 17. DNS/email (incl. NEW MTA-STS/TLS-RPT/BIMI/DANE).
-- [ ] 18. Privacy/tracking module (NEW).
-- [ ] 19. External intelligence (NEW: crt.sh, Wayback, blocklists/Safe Browsing, Shodan/Censys).
-- [ ] 20. security.txt + standards.
-- [ ] 21. Scan diffing.
-- [ ] 22. Polish: `--full` orchestration, posture grading, progress UI, coverage, README (lead with the passive-only + authorization boundary).
+- [x] 14. JS bundle analysis (secrets redacted, source maps, internals).
+- [x] 15. Fingerprinting (signatures + favicon hash).
+- [x] 16. CVE matching (OSV/NVD, cached, confidence).
+- [x] 17. DNS/email (incl. NEW MTA-STS/TLS-RPT/BIMI/DANE).
+- [x] 18. Privacy/tracking module (NEW).
+- [x] 19. External intelligence (NEW: crt.sh, Wayback, blocklists/Safe Browsing, Shodan/Censys). *(Shodan/Censys not built; crt.sh live success shape unverified, see docs/modules/intel.md.)*
+- [x] 20. security.txt + standards.
+- [x] 21. Scan diffing.
+- [x] 22. Polish: `--full` orchestration, posture grading, progress UI, coverage, README (lead with the passive-only + authorization boundary). *(Progress UI not built.)*
 
 **Phase 3 — active (separate decision)**
 - [ ] 23. `active` scaffold + triple gate.
