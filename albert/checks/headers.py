@@ -189,14 +189,6 @@ _SPECS: dict[str, _Spec] = {
         "Use max-age≥31536000; includeSubDomains; preload, then submit to hstspreload.org.",
         ("CWE-319",),
     ),
-    "HDR-NOSNIFF-MISSING": _Spec(
-        "X-Content-Type-Options: nosniff missing",
-        S.LOW,
-        C.HIGH,
-        "Browsers may MIME-sniff responses into executable types.",
-        "Send X-Content-Type-Options: nosniff on all responses.",
-        ("CWE-693", A05),
-    ),
     "HDR-REFERRER-MISSING": _Spec(
         "Referrer-Policy not set",
         S.INFO,
@@ -213,14 +205,6 @@ _SPECS: dict[str, _Spec] = {
         "Use strict-origin-when-cross-origin, same-origin, or no-referrer.",
         ("CWE-200",),
     ),
-    "HDR-PERMISSIONS-MISSING": _Spec(
-        "Permissions-Policy not set",
-        S.INFO,
-        C.HIGH,
-        "Embedded content may request powerful features (camera, geolocation, ...).",
-        "Send Permissions-Policy disabling unused features, e.g. camera=(), microphone=().",
-        ("CWE-693",),
-    ),
     "HDR-PERMISSIONS-WILDCARD": _Spec(
         "Permissions-Policy grants powerful features to all origins",
         S.LOW,
@@ -228,30 +212,6 @@ _SPECS: dict[str, _Spec] = {
         "Any embedded origin may request the listed features.",
         "Replace =* with () or an explicit origin list.",
         ("CWE-693",),
-    ),
-    "HDR-COOP-MISSING": _Spec(
-        "Cross-Origin-Opener-Policy not set",
-        S.INFO,
-        C.HIGH,
-        "Cross-origin windows keep a reference to this page (XS-Leaks, tabnabbing).",
-        "Send Cross-Origin-Opener-Policy: same-origin (or same-origin-allow-popups).",
-        ("CWE-1021",),
-    ),
-    "HDR-COEP-MISSING": _Spec(
-        "Cross-Origin-Embedder-Policy not set",
-        S.INFO,
-        C.HIGH,
-        "The page is not cross-origin isolated (needed for Spectre-hardening features).",
-        "If isolation is wanted, send Cross-Origin-Embedder-Policy: require-corp.",
-        ("CWE-1021",),
-    ),
-    "HDR-CORP-MISSING": _Spec(
-        "Cross-Origin-Resource-Policy not set",
-        S.INFO,
-        C.HIGH,
-        "Other origins can embed this resource (Spectre-style side channels).",
-        "Send Cross-Origin-Resource-Policy: same-origin (or same-site).",
-        ("CWE-1021",),
     ),
     "HDR-CACHE-PUBLIC-SET-COOKIE": _Spec(
         "Response sets a cookie but is publicly cacheable",
@@ -268,22 +228,6 @@ _SPECS: dict[str, _Spec] = {
         "Account/login content may persist in browser or proxy caches.",
         "Send Cache-Control: no-store on authenticated/sensitive pages.",
         ("CWE-525",),
-    ),
-    "HDR-VERSION-BANNER": _Spec(
-        "Software version disclosed in headers",
-        S.LOW,
-        C.HIGH,
-        "Exact versions make it trivial to match known CVEs.",
-        "Remove versions from Server/X-Powered-By (e.g. ServerTokens Prod, expose_php Off).",
-        ("CWE-497", A05),
-    ),
-    "HDR-TECH-BANNER": _Spec(
-        "Technology disclosed in headers",
-        S.INFO,
-        C.HIGH,
-        "Reveals the stack, aiding targeted attacks.",
-        "Remove X-Powered-By and similar headers.",
-        ("CWE-497",),
     ),
     "HDR-NO-CONTENT-TYPE": _Spec(
         "Response has no Content-Type",
@@ -309,22 +253,6 @@ _SPECS: dict[str, _Spec] = {
         "Cross-origin pages can read precise resource timing, aiding cross-site leak attacks.",
         "Limit Timing-Allow-Origin to origins that need it.",
         ("CWE-208",),
-    ),
-    "HDR-DEBUG-HEADER": _Spec(
-        "Debug/profiler header exposed",
-        S.MEDIUM,
-        C.MEDIUM,
-        "Debug tooling (e.g. Symfony profiler, ChromeLogger) can leak config, queries, secrets.",
-        "Disable debug mode/profilers in production.",
-        ("CWE-215", "CWE-489", A05),
-    ),
-    "HDR-BACKEND-DISCLOSED": _Spec(
-        "Backend/internal server identity disclosed",
-        S.LOW,
-        C.MEDIUM,
-        "Internal host names or upstreams aid reconnaissance.",
-        "Strip backend-identifying headers at the proxy/load balancer.",
-        ("CWE-200",),
     ),
     "HDR-INTERNAL-IP": _Spec(
         "Private IP address disclosed in headers",
@@ -377,42 +305,6 @@ _SPECS: dict[str, _Spec] = {
 }
 
 # id -> (severity, why) for deprecated headers; id becomes HDR-DEPRECATED-<NAME>.
-_DEPRECATED: dict[str, tuple[Severity, str]] = {
-    "x-xss-protection": (
-        S.INFO,
-        "XSS auditor removed from browsers; set 0 or drop it, rely on CSP.",
-    ),
-    "expect-ct": (S.INFO, "Obsolete; browsers enforce Certificate Transparency."),
-    "public-key-pins": (
-        S.LOW,
-        "HPKP removed from browsers; stale pins can lock out legacy clients.",
-    ),
-    "public-key-pins-report-only": (S.INFO, "HPKP removed from browsers."),
-    "feature-policy": (S.INFO, "Replaced by Permissions-Policy."),
-    "p3p": (S.INFO, "Obsolete privacy header, ignored by browsers."),
-    "x-content-security-policy": (S.INFO, "Prefixed CSP; use Content-Security-Policy."),
-    "x-webkit-csp": (S.INFO, "Prefixed CSP; use Content-Security-Policy."),
-}
-
-_DEBUG_HEADERS = {
-    "x-debug-token",
-    "x-debug-token-link",
-    "x-chromelogger-data",
-    "x-chromephp-data",
-    "x-debug",
-    "x-debug-info",
-    "x-debug-mode",
-}
-_BACKEND_HEADERS = {
-    "x-backend-server",
-    "x-backend",
-    "x-server-name",
-    "x-upstream",
-    "x-forwarded-server",
-    "x-host",
-    "x-originating-ip",
-    "x-real-server",
-}
 _TRACE_HEADERS = {
     "x-request-id",
     "x-trace-id",
@@ -425,14 +317,6 @@ _TRACE_HEADERS = {
     "x-amzn-requestid",
     "uber-trace-id",
 }
-_BANNER_HEADERS = (
-    "server",
-    "x-powered-by",
-    "x-aspnet-version",
-    "x-aspnetmvc-version",
-    "x-generator",
-    "x-powered-cms",
-)
 
 # (provider, header, value regex or None for presence)
 _CDN_SIGNATURES: tuple[tuple[str, str, str | None], ...] = (
@@ -461,7 +345,6 @@ _CDN_SIGNATURES: tuple[tuple[str, str, str | None], ...] = (
     ("F5 BIG-IP", "set-cookie", r"^BIGipServer"),
 )
 
-_VERSION = re.compile(r"\d+\.\d+|/\d")
 _SENSITIVE_PATH = re.compile(
     r"/(?:log-?in|sign-?in|account|profile|admin|checkout|cart|settings|password|auth|"
     r"dashboard|billing|session|user|my)(?:/|$|[-_.?])",
@@ -535,8 +418,12 @@ def _hit(
     )
 
 
-def _ev(header: str, value: str | None) -> Evidence:
+def header_evidence(header: str, value: str | None) -> Evidence:
+    """Header evidence ("(absent)" when missing); shared with the YAML rule engine."""
     return Evidence("header", "(absent)" if value is None else _clip(value), location=header)
+
+
+_ev = header_evidence
 
 
 # --- CSP ----------------------------------------------------------------------------------
@@ -680,16 +567,6 @@ def check_hsts(resp: CollectedResponse) -> list[Finding]:
     return out
 
 
-def check_nosniff(resp: CollectedResponse) -> list[Finding]:
-    """X-Content-Type-Options: nosniff on successful responses."""
-    if not 200 <= resp.status < 300:
-        return []
-    value = resp.header("x-content-type-options")
-    if value is None or value.strip().lower() != "nosniff":
-        return [_hit(resp, "HDR-NOSNIFF-MISSING", _ev("X-Content-Type-Options", value))]
-    return []
-
-
 def check_referrer_policy(resp: CollectedResponse) -> list[Finding]:
     """Referrer-Policy presence and leaky values (last recognized token wins)."""
     if not resp.is_document:
@@ -707,12 +584,12 @@ def check_referrer_policy(resp: CollectedResponse) -> list[Finding]:
 
 
 def check_permissions_policy(resp: CollectedResponse) -> list[Finding]:
-    """Permissions-Policy presence and powerful features granted to every origin."""
+    """Powerful features granted to every origin (missing header: rules/headers.yaml)."""
     if not resp.is_document:
         return []
     value = resp.header("permissions-policy")
     if value is None:
-        return [_hit(resp, "HDR-PERMISSIONS-MISSING", _ev("Permissions-Policy", None))]
+        return []
     wild = []
     for item in value.split(","):
         feature, _, allow = item.partition("=")
@@ -721,21 +598,6 @@ def check_permissions_policy(resp: CollectedResponse) -> list[Finding]:
     if wild:
         return [_hit(resp, "HDR-PERMISSIONS-WILDCARD", _ev("Permissions-Policy", ", ".join(wild)))]
     return []
-
-
-def check_cross_origin_isolation(resp: CollectedResponse) -> list[Finding]:
-    """COOP/COEP on documents, CORP on any successful response."""
-    out = []
-    if resp.is_document:
-        coop = resp.header("cross-origin-opener-policy")
-        if coop is None or coop.strip().lower() == "unsafe-none":
-            out.append(_hit(resp, "HDR-COOP-MISSING", _ev("Cross-Origin-Opener-Policy", coop)))
-        coep = resp.header("cross-origin-embedder-policy")
-        if coep is None or coep.strip().lower() == "unsafe-none":
-            out.append(_hit(resp, "HDR-COEP-MISSING", _ev("Cross-Origin-Embedder-Policy", coep)))
-    if 200 <= resp.status < 300 and resp.header("cross-origin-resource-policy") is None:
-        out.append(_hit(resp, "HDR-CORP-MISSING", _ev("Cross-Origin-Resource-Policy", None)))
-    return out
 
 
 def check_cache_control(resp: CollectedResponse) -> list[Finding]:
@@ -754,41 +616,6 @@ def check_cache_control(resp: CollectedResponse) -> list[Finding]:
 # --- Disclosure ---------------------------------------------------------------------------
 
 
-def check_banners(resp: CollectedResponse) -> list[Finding]:
-    """Version banners (Low) and bare technology banners (Info)."""
-    out = []
-    for name in _BANNER_HEADERS:
-        for value in resp.header_all(name):
-            if _VERSION.search(value):
-                out.append(_hit(resp, "HDR-VERSION-BANNER", _ev(name, value)))
-            elif name != "server":
-                out.append(_hit(resp, "HDR-TECH-BANNER", _ev(name, value)))
-    return out
-
-
-def check_deprecated(resp: CollectedResponse) -> list[Finding]:
-    """Deprecated or obsolete security headers."""
-    out = []
-    for name, (severity, why) in _DEPRECATED.items():
-        value = resp.header(name)
-        if value is None or (name == "x-xss-protection" and value.strip() == "0"):
-            continue
-        out.append(
-            Finding(
-                id=f"HDR-DEPRECATED-{name.upper()}",
-                title=f"Deprecated header: {name}",
-                severity=severity,
-                confidence=C.HIGH,
-                urls=(resp.url,),
-                evidence=(_ev(name, value),),
-                impact=why,
-                remediation=f"Remove {name}.",
-                refs=(A05,),
-            )
-        )
-    return out
-
-
 def _is_private_host(url: str) -> bool:
     host = urlsplit(url).hostname or ""
     if host == "localhost":
@@ -801,15 +628,9 @@ def _is_private_host(url: str) -> bool:
 
 
 def check_leaky_headers(resp: CollectedResponse) -> list[Finding]:
-    """Debug/profiler, backend identity, private IPs, trace IDs, Server-Timing."""
+    """Private IPs, trace IDs, Server-Timing (debug/backend headers: rules/headers.yaml)."""
     out = []
     names = {k.lower() for k, _ in resp.headers}
-    for k, v in resp.headers:
-        key = k.lower()
-        if key in _DEBUG_HEADERS:
-            out.append(_hit(resp, "HDR-DEBUG-HEADER", _ev(k, v)))
-        elif key in _BACKEND_HEADERS:
-            out.append(_hit(resp, "HDR-BACKEND-DISCLOSED", _ev(k, v)))
     if not _is_private_host(resp.url):  # lab targets legitimately show private IPs
         for k, v in resp.headers:
             if _PRIVATE_IPV4.search(v):
@@ -924,13 +745,9 @@ CHECKS: tuple[HeaderCheck, ...] = (
     check_csp,
     check_framing,
     check_hsts,
-    check_nosniff,
     check_referrer_policy,
     check_permissions_policy,
-    check_cross_origin_isolation,
     check_cache_control,
-    check_banners,
-    check_deprecated,
     check_leaky_headers,
     check_misc,
     check_etag_inode,
@@ -940,5 +757,6 @@ CHECKS: tuple[HeaderCheck, ...] = (
 
 
 def run_header_checks(responses: Iterable[CollectedResponse]) -> list[Finding]:
-    """Run every header check over every response; group identical findings across pages."""
+    """Python header checks over every response, grouped. The engine adds the YAML rules
+    (rules/headers.yaml) via ``run_family("headers", ...)``."""
     return group_findings(f for resp in responses for check in CHECKS for f in check(resp))

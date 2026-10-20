@@ -1,0 +1,1748 @@
+{
+ "headers": [
+  {
+   "id": "HDR-CSP-MISSING",
+   "title": "Content-Security-Policy missing",
+   "severity": "medium",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page",
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0",
+    "https://shop.test/account/login?case=1",
+    "http://shop.test/page?case=1"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "(absent)",
+     "location": "Content-Security-Policy"
+    }
+   ],
+   "impact": "No CSP to limit the impact of XSS or injected third-party content.",
+   "remediation": "Send a Content-Security-Policy; start with a nonce-based strict policy.",
+   "refs": [
+    "CWE-693",
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-CSP-UNSAFE-INLINE",
+   "title": "CSP allows inline scripts ('unsafe-inline')",
+   "severity": "medium",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "default-src 'self' *; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; frame-ancestors *",
+     "location": "Content-Security-Policy"
+    }
+   ],
+   "impact": "Injected inline scripts run, so the CSP gives little XSS protection.",
+   "remediation": "Replace 'unsafe-inline' in script-src with nonces or hashes.",
+   "refs": [
+    "CWE-693",
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-CSP-WILDCARD",
+   "title": "CSP script sources include wildcards",
+   "severity": "medium",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "default-src 'self' *; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; frame-ancestors *",
+     "location": "Content-Security-Policy"
+    }
+   ],
+   "impact": "Scripts can load from any host/scheme listed, bypassing the policy.",
+   "remediation": "Drop *, scheme-only (https:, data:) sources from script-src/default-src.",
+   "refs": [
+    "CWE-693",
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-HSTS-MISSING",
+   "title": "Strict-Transport-Security missing",
+   "severity": "medium",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "https://shop.test/account/login?case=0",
+    "https://shop.test/account/login?case=1",
+    "https://shop.test/account/login?case=2",
+    "https://shop.test/account/login?case=3",
+    "https://shop.test/moved",
+    "https://shop.test/missing"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "(absent)",
+     "location": "Strict-Transport-Security"
+    }
+   ],
+   "impact": "First visits and typed http:// links can be downgraded/intercepted (SSL stripping).",
+   "remediation": "Send Strict-Transport-Security: max-age=31536000; includeSubDomains.",
+   "refs": [
+    "CWE-319",
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-CACHE-PUBLIC-SET-COOKIE",
+   "title": "Response sets a cookie but is publicly cacheable",
+   "severity": "medium",
+   "confidence": "medium",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "public, max-age=600",
+     "location": "Cache-Control"
+    }
+   ],
+   "impact": "A shared cache/CDN may store and serve one user's Set-Cookie to others.",
+   "remediation": "Use Cache-Control: no-store (or private) on responses that set cookies.",
+   "refs": [
+    "CWE-525",
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-CLICKJACKING",
+   "title": "No clickjacking protection (frame-ancestors / X-Frame-Options)",
+   "severity": "medium",
+   "confidence": "medium",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page",
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0",
+    "https://shop.test/account/login?case=1",
+    "http://shop.test/page?case=1"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "(absent)",
+     "location": "X-Frame-Options"
+    }
+   ],
+   "impact": "The page can be framed by any site and used for clickjacking.",
+   "remediation": "Add CSP frame-ancestors 'self' (or 'none'); optionally X-Frame-Options: DENY.",
+   "refs": [
+    "CWE-1021",
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-DEBUG-HEADER",
+   "title": "Debug/profiler header exposed",
+   "severity": "medium",
+   "confidence": "medium",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page",
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "4f2a1c",
+     "location": "x-debug-token"
+    },
+    {
+     "kind": "header",
+     "value": "https://app.test/_profiler/4f2a1c",
+     "location": "x-debug-token-link"
+    },
+    {
+     "kind": "header",
+     "value": "abc123",
+     "location": "X-Debug-Token"
+    },
+    {
+     "kind": "header",
+     "value": "eyJ2ZXJzaW9uIjo=",
+     "location": "X-ChromeLogger-Data"
+    }
+   ],
+   "impact": "Debug tooling (e.g. Symfony profiler, ChromeLogger) can leak config, queries, secrets.",
+   "remediation": "Disable debug mode/profilers in production.",
+   "refs": [
+    "CWE-215",
+    "CWE-489",
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-CONFLICTING-HEADERS",
+   "title": "Security header sent more than once with different values",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "max-age=31536000",
+     "location": "strict-transport-security"
+    },
+    {
+     "kind": "header",
+     "value": "max-age=0",
+     "location": "strict-transport-security"
+    },
+    {
+     "kind": "header",
+     "value": "DENY",
+     "location": "x-frame-options"
+    },
+    {
+     "kind": "header",
+     "value": "SAMEORIGIN",
+     "location": "x-frame-options"
+    }
+   ],
+   "impact": "Browsers keep the first value or ignore the header entirely, so the intended policy may not apply (often two layers, e.g. app and proxy, both setting it).",
+   "remediation": "Set each security header in exactly one place.",
+   "refs": [
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-CSP-NO-BASE-URI",
+   "title": "CSP missing base-uri",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "default-src 'self' *; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; frame-ancestors *",
+     "location": "Content-Security-Policy"
+    }
+   ],
+   "impact": "An injected <base> tag can redirect relative script URLs.",
+   "remediation": "Add base-uri 'none' (or 'self').",
+   "refs": [
+    "CWE-693",
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-CSP-UNSAFE-EVAL",
+   "title": "CSP allows eval ('unsafe-eval')",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "default-src 'self' *; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; frame-ancestors *",
+     "location": "Content-Security-Policy"
+    }
+   ],
+   "impact": "String-to-code sinks (eval, new Function) stay usable for injected input.",
+   "remediation": "Remove 'unsafe-eval'; refactor code that needs eval.",
+   "refs": [
+    "CWE-693",
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-DEPRECATED-PUBLIC-KEY-PINS",
+   "title": "Deprecated header: public-key-pins",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "pin-sha256=\"x\"",
+     "location": "public-key-pins"
+    }
+   ],
+   "impact": "HPKP removed from browsers; stale pins can lock out legacy clients.",
+   "remediation": "Remove public-key-pins.",
+   "refs": [
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-FRAME-ANCESTORS-WILDCARD",
+   "title": "CSP frame-ancestors allows any origin",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "frame-ancestors *",
+     "location": "Content-Security-Policy"
+    }
+   ],
+   "impact": "Any site may frame the page; this also overrides X-Frame-Options.",
+   "remediation": "Restrict frame-ancestors to 'self' or named origins.",
+   "refs": [
+    "CWE-1021",
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-HSTS-NO-SUBDOMAINS",
+   "title": "Strict-Transport-Security lacks includeSubDomains",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "max-age=31536000",
+     "location": "Strict-Transport-Security"
+    },
+    {
+     "kind": "header",
+     "value": "max-age=86400",
+     "location": "Strict-Transport-Security"
+    }
+   ],
+   "impact": "Subdomains can still be reached over HTTP, enabling cookie injection.",
+   "remediation": "Add includeSubDomains once all subdomains serve HTTPS.",
+   "refs": [
+    "CWE-319"
+   ]
+  },
+  {
+   "id": "HDR-HSTS-SHORT",
+   "title": "Strict-Transport-Security max-age too short",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "max-age=86400",
+     "location": "Strict-Transport-Security"
+    }
+   ],
+   "impact": "Protection lapses quickly for infrequent visitors.",
+   "remediation": "Use max-age of at least 15552000 (180 days); 31536000+ recommended.",
+   "refs": [
+    "CWE-319"
+   ]
+  },
+  {
+   "id": "HDR-INTERNAL-IP",
+   "title": "Private IP address disclosed in headers",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "10.0.3.17",
+     "location": "x-backend-server"
+    }
+   ],
+   "impact": "Reveals internal network layout.",
+   "remediation": "Strip or rewrite headers carrying internal addresses at the edge.",
+   "refs": [
+    "CWE-200"
+   ]
+  },
+  {
+   "id": "HDR-NOSNIFF-MISSING",
+   "title": "X-Content-Type-Options: nosniff missing",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page",
+    "https://shop.test/account/login?case=1",
+    "http://shop.test/page?case=1",
+    "https://shop.test/account/login?case=2",
+    "http://shop.test/page?case=2",
+    "https://shop.test/account/login?case=3",
+    "http://shop.test/page?case=3"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "(absent)",
+     "location": "X-Content-Type-Options"
+    },
+    {
+     "kind": "header",
+     "value": "sniff",
+     "location": "X-Content-Type-Options"
+    }
+   ],
+   "impact": "Browsers may MIME-sniff responses into executable types.",
+   "remediation": "Send X-Content-Type-Options: nosniff on all responses.",
+   "refs": [
+    "CWE-693",
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-PERMISSIONS-WILDCARD",
+   "title": "Permissions-Policy grants powerful features to all origins",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "camera=*",
+     "location": "Permissions-Policy"
+    }
+   ],
+   "impact": "Any embedded origin may request the listed features.",
+   "remediation": "Replace =* with () or an explicit origin list.",
+   "refs": [
+    "CWE-693"
+   ]
+  },
+  {
+   "id": "HDR-REFERRER-UNSAFE",
+   "title": "Referrer-Policy leaks full URLs",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "unsafe-url",
+     "location": "Referrer-Policy"
+    }
+   ],
+   "impact": "Full URLs (paths, query tokens) are sent to other origins.",
+   "remediation": "Use strict-origin-when-cross-origin, same-origin, or no-referrer.",
+   "refs": [
+    "CWE-200"
+   ]
+  },
+  {
+   "id": "HDR-SERVER-TIMING",
+   "title": "Server-Timing exposes backend metrics",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "db;dur=53;desc=\"mysql primary\", app;dur=47.2",
+     "location": "Server-Timing"
+    }
+   ],
+   "impact": "Timing data can reveal backend components and aid timing side-channels.",
+   "remediation": "Send Server-Timing only to internal/debug clients.",
+   "refs": [
+    "CWE-200"
+   ]
+  },
+  {
+   "id": "HDR-VERSION-BANNER",
+   "title": "Software version disclosed in headers",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page",
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0",
+    "https://shop.test/account/login?case=2",
+    "http://shop.test/page?case=2"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "Apache/2.4.49 (Unix) OpenSSL/1.1.1k",
+     "location": "server"
+    },
+    {
+     "kind": "header",
+     "value": "PHP/7.4.3",
+     "location": "x-powered-by"
+    },
+    {
+     "kind": "header",
+     "value": "nginx/1.25.3",
+     "location": "server"
+    },
+    {
+     "kind": "header",
+     "value": "4.0.30319",
+     "location": "x-aspnet-version"
+    },
+    {
+     "kind": "header",
+     "value": "5.2",
+     "location": "x-aspnetmvc-version"
+    },
+    {
+     "kind": "header",
+     "value": "PHP/8.1.2",
+     "location": "x-powered-by"
+    }
+   ],
+   "impact": "Exact versions make it trivial to match known CVEs.",
+   "remediation": "Remove versions from Server/X-Powered-By (e.g. ServerTokens Prod, expose_php Off).",
+   "refs": [
+    "CWE-497",
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-BACKEND-DISCLOSED",
+   "title": "Backend/internal server identity disclosed",
+   "severity": "low",
+   "confidence": "medium",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page",
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "10.0.3.17",
+     "location": "x-backend-server"
+    },
+    {
+     "kind": "header",
+     "value": "app01",
+     "location": "X-Backend-Server"
+    },
+    {
+     "kind": "header",
+     "value": "web-2",
+     "location": "X-Real-Server"
+    }
+   ],
+   "impact": "Internal host names or upstreams aid reconnaissance.",
+   "remediation": "Strip backend-identifying headers at the proxy/load balancer.",
+   "refs": [
+    "CWE-200"
+   ]
+  },
+  {
+   "id": "HDR-ETAG-INODE",
+   "title": "ETag may disclose file inode (Apache)",
+   "severity": "low",
+   "confidence": "medium",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "\"1e2b4f-2aa6-5f3c1b2e4d0c0\"",
+     "location": "ETag"
+    }
+   ],
+   "impact": "Inode numbers leak filesystem details (CVE-2003-1418).",
+   "remediation": "Apache: FileETag MTime Size.",
+   "refs": [
+    "CWE-200",
+    "CVE-2003-1418"
+   ]
+  },
+  {
+   "id": "HDR-NO-CONTENT-TYPE",
+   "title": "Response has no Content-Type",
+   "severity": "low",
+   "confidence": "medium",
+   "urls": [
+    "https://shop.test/account/login?case=3",
+    "http://shop.test/page?case=3"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "(absent)",
+     "location": "Content-Type"
+    }
+   ],
+   "impact": "Browsers sniff the type, which can turn uploaded or reflected content into HTML/script.",
+   "remediation": "Send an explicit Content-Type (with charset for text) on every response with a body.",
+   "refs": [
+    "CWE-430",
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-CACHE-SENSITIVE",
+   "title": "Likely-sensitive page cacheable (no Cache-Control: no-store)",
+   "severity": "low",
+   "confidence": "low",
+   "urls": [
+    "https://shop.test/account/login",
+    "https://shop.test/account/login?case=0",
+    "https://shop.test/account/login?case=1",
+    "https://shop.test/account/login?case=2",
+    "https://shop.test/account/login?case=3"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "(absent)",
+     "location": "Cache-Control"
+    }
+   ],
+   "impact": "Account/login content may persist in browser or proxy caches.",
+   "remediation": "Send Cache-Control: no-store on authenticated/sensitive pages.",
+   "refs": [
+    "CWE-525"
+   ]
+  },
+  {
+   "id": "HDR-CDN-WAF",
+   "title": "CDN/WAF detected: Cloudflare",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "7d1f2a3b4c5d6e7f-FRA",
+     "location": "cf-ray"
+    }
+   ],
+   "impact": "Informational: edge provider in front of the origin.",
+   "remediation": "None.",
+   "refs": []
+  },
+  {
+   "id": "HDR-COEP-MISSING",
+   "title": "Cross-Origin-Embedder-Policy not set",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page",
+    "https://shop.test/account/login?case=1",
+    "http://shop.test/page?case=1"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "(absent)",
+     "location": "Cross-Origin-Embedder-Policy"
+    }
+   ],
+   "impact": "The page is not cross-origin isolated (needed for Spectre-hardening features).",
+   "remediation": "If isolation is wanted, send Cross-Origin-Embedder-Policy: require-corp.",
+   "refs": [
+    "CWE-1021"
+   ]
+  },
+  {
+   "id": "HDR-COOP-MISSING",
+   "title": "Cross-Origin-Opener-Policy not set",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page",
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0",
+    "https://shop.test/account/login?case=1",
+    "http://shop.test/page?case=1"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "(absent)",
+     "location": "Cross-Origin-Opener-Policy"
+    },
+    {
+     "kind": "header",
+     "value": "unsafe-none",
+     "location": "Cross-Origin-Opener-Policy"
+    }
+   ],
+   "impact": "Cross-origin windows keep a reference to this page (XS-Leaks, tabnabbing).",
+   "remediation": "Send Cross-Origin-Opener-Policy: same-origin (or same-origin-allow-popups).",
+   "refs": [
+    "CWE-1021"
+   ]
+  },
+  {
+   "id": "HDR-CORP-MISSING",
+   "title": "Cross-Origin-Resource-Policy not set",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page",
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0",
+    "https://shop.test/account/login?case=1",
+    "http://shop.test/page?case=1",
+    "https://shop.test/account/login?case=2",
+    "http://shop.test/page?case=2",
+    "https://shop.test/account/login?case=3",
+    "http://shop.test/page?case=3"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "(absent)",
+     "location": "Cross-Origin-Resource-Policy"
+    }
+   ],
+   "impact": "Other origins can embed this resource (Spectre-style side channels).",
+   "remediation": "Send Cross-Origin-Resource-Policy: same-origin (or same-site).",
+   "refs": [
+    "CWE-1021"
+   ]
+  },
+  {
+   "id": "HDR-DEPRECATED-EXPECT-CT",
+   "title": "Deprecated header: expect-ct",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "max-age=0",
+     "location": "expect-ct"
+    }
+   ],
+   "impact": "Obsolete; browsers enforce Certificate Transparency.",
+   "remediation": "Remove expect-ct.",
+   "refs": [
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-DEPRECATED-FEATURE-POLICY",
+   "title": "Deprecated header: feature-policy",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "camera 'none'",
+     "location": "feature-policy"
+    }
+   ],
+   "impact": "Replaced by Permissions-Policy.",
+   "remediation": "Remove feature-policy.",
+   "refs": [
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-DEPRECATED-P3P",
+   "title": "Deprecated header: p3p",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "CP=\"NOI\"",
+     "location": "p3p"
+    }
+   ],
+   "impact": "Obsolete privacy header, ignored by browsers.",
+   "remediation": "Remove p3p.",
+   "refs": [
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-DEPRECATED-PUBLIC-KEY-PINS-REPORT-ONLY",
+   "title": "Deprecated header: public-key-pins-report-only",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "pin-sha256=\"y\"",
+     "location": "public-key-pins-report-only"
+    }
+   ],
+   "impact": "HPKP removed from browsers.",
+   "remediation": "Remove public-key-pins-report-only.",
+   "refs": [
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-DEPRECATED-X-CONTENT-SECURITY-POLICY",
+   "title": "Deprecated header: x-content-security-policy",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "default-src 'self'",
+     "location": "x-content-security-policy"
+    }
+   ],
+   "impact": "Prefixed CSP; use Content-Security-Policy.",
+   "remediation": "Remove x-content-security-policy.",
+   "refs": [
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-DEPRECATED-X-WEBKIT-CSP",
+   "title": "Deprecated header: x-webkit-csp",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "default-src 'self'",
+     "location": "x-webkit-csp"
+    }
+   ],
+   "impact": "Prefixed CSP; use Content-Security-Policy.",
+   "remediation": "Remove x-webkit-csp.",
+   "refs": [
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-DEPRECATED-X-XSS-PROTECTION",
+   "title": "Deprecated header: x-xss-protection",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page",
+    "https://shop.test/account/login?case=1",
+    "http://shop.test/page?case=1"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "1; mode=block",
+     "location": "x-xss-protection"
+    }
+   ],
+   "impact": "XSS auditor removed from browsers; set 0 or drop it, rely on CSP.",
+   "remediation": "Remove x-xss-protection.",
+   "refs": [
+    "OWASP A05:2021"
+   ]
+  },
+  {
+   "id": "HDR-FRAME-ANCESTORS-MISSING",
+   "title": "X-Frame-Options set without CSP frame-ancestors",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "DENY",
+     "location": "X-Frame-Options"
+    }
+   ],
+   "impact": "Protected today; frame-ancestors is the standard and supports allow-lists.",
+   "remediation": "Add CSP frame-ancestors matching the X-Frame-Options intent.",
+   "refs": [
+    "CWE-1021"
+   ]
+  },
+  {
+   "id": "HDR-HSTS-NOT-PRELOAD-READY",
+   "title": "Strict-Transport-Security not preload-ready",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "max-age=31536000",
+     "location": "Strict-Transport-Security"
+    },
+    {
+     "kind": "header",
+     "value": "max-age=86400",
+     "location": "Strict-Transport-Security"
+    }
+   ],
+   "impact": "The host can't join browser HSTS preload lists, so first visits stay exposed.",
+   "remediation": "Use max-age\u226531536000; includeSubDomains; preload, then submit to hstspreload.org.",
+   "refs": [
+    "CWE-319"
+   ]
+  },
+  {
+   "id": "HDR-PERMISSIONS-MISSING",
+   "title": "Permissions-Policy not set",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page",
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "(absent)",
+     "location": "Permissions-Policy"
+    }
+   ],
+   "impact": "Embedded content may request powerful features (camera, geolocation, ...).",
+   "remediation": "Send Permissions-Policy disabling unused features, e.g. camera=(), microphone=().",
+   "refs": [
+    "CWE-693"
+   ]
+  },
+  {
+   "id": "HDR-PROTOCOLS",
+   "title": "HTTP/2 / HTTP/3 support",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page",
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0",
+    "https://shop.test/account/login?case=1",
+    "http://shop.test/page?case=1"
+   ],
+   "evidence": [
+    {
+     "kind": "protocol",
+     "value": "HTTP/2: not observed (client is HTTP/1.1-only)",
+     "location": ""
+    },
+    {
+     "kind": "protocol",
+     "value": "HTTP/3: not advertised (no h3 in Alt-Svc)",
+     "location": ""
+    },
+    {
+     "kind": "protocol",
+     "value": "HTTP/2+: negotiated (HTTP/2)",
+     "location": ""
+    },
+    {
+     "kind": "protocol",
+     "value": "HTTP/3: advertised via Alt-Svc",
+     "location": ""
+    },
+    {
+     "kind": "header",
+     "value": "h3=\":443\"; ma=86400",
+     "location": "Alt-Svc"
+    }
+   ],
+   "impact": "Informational.",
+   "remediation": "None.",
+   "refs": []
+  },
+  {
+   "id": "HDR-REFERRER-MISSING",
+   "title": "Referrer-Policy not set",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page",
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0",
+    "https://shop.test/account/login?case=1",
+    "http://shop.test/page?case=1"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "(absent)",
+     "location": "Referrer-Policy"
+    }
+   ],
+   "impact": "Browser default (strict-origin-when-cross-origin) applies; behavior is implicit.",
+   "remediation": "Set Referrer-Policy: strict-origin-when-cross-origin (or stricter).",
+   "refs": [
+    "CWE-200"
+   ]
+  },
+  {
+   "id": "HDR-TECH-BANNER",
+   "title": "Technology disclosed in headers",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login?case=0",
+    "http://shop.test/page?case=0"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "Express",
+     "location": "x-powered-by"
+    },
+    {
+     "kind": "header",
+     "value": "Drupal 9 (https://www.drupal.org)",
+     "location": "x-generator"
+    },
+    {
+     "kind": "header",
+     "value": "Bitrix Site Manager",
+     "location": "x-powered-cms"
+    }
+   ],
+   "impact": "Reveals the stack, aiding targeted attacks.",
+   "remediation": "Remove X-Powered-By and similar headers.",
+   "refs": [
+    "CWE-497"
+   ]
+  },
+  {
+   "id": "HDR-TIMING-ALLOW-ORIGIN",
+   "title": "Timing-Allow-Origin: * exposes detailed timing to any site",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "*",
+     "location": "Timing-Allow-Origin"
+    }
+   ],
+   "impact": "Cross-origin pages can read precise resource timing, aiding cross-site leak attacks.",
+   "remediation": "Limit Timing-Allow-Origin to origins that need it.",
+   "refs": [
+    "CWE-208"
+   ]
+  },
+  {
+   "id": "HDR-TRACE-ID",
+   "title": "Request/trace ID headers exposed",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "header",
+     "value": "present",
+     "location": "x-request-id"
+    }
+   ],
+   "impact": "Low risk; reveals tracing stack and lets requests be correlated.",
+   "remediation": "Optional: strip tracing headers at the edge.",
+   "refs": [
+    "CWE-200"
+   ]
+  }
+ ],
+ "cookies": [
+  {
+   "id": "COOKIE-NO-HTTPONLY-PHPSESSID",
+   "title": "Cookie 'PHPSESSID': missing HttpOnly",
+   "severity": "medium",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page",
+    "https://shop.test/account/login?case=3",
+    "http://shop.test/page?case=3"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "PHPSESSID=[value not recorded]; path=/",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Page scripts (and so any XSS) can read the cookie.",
+   "remediation": "Add HttpOnly unless client-side JavaScript genuinely needs the value.",
+   "refs": [
+    "CWE-1004",
+    "OWASP A05:2021",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-NO-SECURE-PHPSESSID",
+   "title": "Cookie 'PHPSESSID': missing Secure",
+   "severity": "medium",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "https://shop.test/account/login?case=3"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "PHPSESSID=[value not recorded]; path=/",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "The cookie is also sent over plain HTTP, where it can be intercepted.",
+   "remediation": "Add the Secure attribute.",
+   "refs": [
+    "CWE-614",
+    "OWASP A05:2021",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-BROAD-DOMAIN-__Host-auth",
+   "title": "Cookie '__Host-auth': Domain=shop.test shares it with all subdomains",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "__Host-auth=[value not recorded]; Domain=shop.test; Path=/; Secure; HttpOnly; SameSite=Strict",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Every subdomain (including any compromised or third-party-hosted one) receives and can overwrite the cookie.",
+   "remediation": "Omit Domain to make the cookie host-only, or use the __Host- prefix.",
+   "refs": [
+    "CWE-1275",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-BROAD-DOMAIN-remember_me",
+   "title": "Cookie 'remember_me': Domain=shop.test shares it with all subdomains",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "remember_me=[value not recorded]; Domain=.shop.test; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=2592000",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Every subdomain (including any compromised or third-party-hosted one) receives and can overwrite the cookie.",
+   "remediation": "Omit Domain to make the cookie host-only, or use the __Host- prefix.",
+   "refs": [
+    "CWE-1275",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-NO-SAMESITE-PHPSESSID",
+   "title": "Cookie 'PHPSESSID': missing SameSite",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page",
+    "https://shop.test/account/login?case=3",
+    "http://shop.test/page?case=3"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "PHPSESSID=[value not recorded]; path=/",
+     "location": "Set-Cookie"
+    },
+    {
+     "kind": "cookie",
+     "value": "PHPSESSID=[value not recorded]; Secure; HttpOnly",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Cross-site behavior depends on browser defaults (Lax in some, not all).",
+   "remediation": "Set SameSite=Lax (or Strict); use None only for real cross-site use, with Secure.",
+   "refs": [
+    "CWE-1275",
+    "OWASP A05:2021",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-NO-SECURE-__Secure-pref",
+   "title": "Cookie '__Secure-pref': missing Secure",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "__Secure-pref=[value not recorded]; Path=/",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "The cookie is also sent over plain HTTP, where it can be intercepted.",
+   "remediation": "Add the Secure attribute.",
+   "refs": [
+    "CWE-614",
+    "OWASP A05:2021",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-NO-SECURE-legacy",
+   "title": "Cookie 'legacy': missing Secure",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login?case=3"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "legacy=[value not recorded]; HttpOnly; SameSite=None",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "The cookie is also sent over plain HTTP, where it can be intercepted.",
+   "remediation": "Add the Secure attribute.",
+   "refs": [
+    "CWE-614",
+    "OWASP A05:2021",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-NO-SECURE-pref",
+   "title": "Cookie 'pref': missing Secure",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login?case=3"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "pref=[value not recorded]",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "The cookie is also sent over plain HTTP, where it can be intercepted.",
+   "remediation": "Add the Secure attribute.",
+   "refs": [
+    "CWE-614",
+    "OWASP A05:2021",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-NO-SECURE-tracker",
+   "title": "Cookie 'tracker': missing Secure",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "tracker=[value not recorded]; SameSite=None",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "The cookie is also sent over plain HTTP, where it can be intercepted.",
+   "remediation": "Add the Secure attribute.",
+   "refs": [
+    "CWE-614",
+    "OWASP A05:2021",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-PREFIX-MISUSE-__Host-auth",
+   "title": "Cookie '__Host-auth': __Host- prefix rules broken (has a Domain attribute)",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "__Host-auth=[value not recorded]; Domain=shop.test; Path=/; Secure; HttpOnly; SameSite=Strict",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Browsers reject the cookie, so the protection the prefix promises is absent (and the feature relying on it may silently fail).",
+   "remediation": "__Secure-: Secure + HTTPS. __Host-: Secure + HTTPS + Path=/ + no Domain.",
+   "refs": [
+    "CWE-1275",
+    "RFC 6265bis",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-PREFIX-MISUSE-__Host-auth",
+   "title": "Cookie '__Host-auth': __Host- prefix rules broken (set over plain HTTP, has a Domain attribute)",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "__Host-auth=[value not recorded]; Domain=shop.test; Path=/; Secure; HttpOnly; SameSite=Strict",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Browsers reject the cookie, so the protection the prefix promises is absent (and the feature relying on it may silently fail).",
+   "remediation": "__Secure-: Secure + HTTPS. __Host-: Secure + HTTPS + Path=/ + no Domain.",
+   "refs": [
+    "CWE-1275",
+    "RFC 6265bis",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-PREFIX-MISUSE-__Secure-pref",
+   "title": "Cookie '__Secure-pref': __Secure- prefix rules broken (no Secure attribute)",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "__Secure-pref=[value not recorded]; Path=/",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Browsers reject the cookie, so the protection the prefix promises is absent (and the feature relying on it may silently fail).",
+   "remediation": "__Secure-: Secure + HTTPS. __Host-: Secure + HTTPS + Path=/ + no Domain.",
+   "refs": [
+    "CWE-1275",
+    "RFC 6265bis",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-PREFIX-MISUSE-__Secure-pref",
+   "title": "Cookie '__Secure-pref': __Secure- prefix rules broken (no Secure attribute, set over plain HTTP)",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "__Secure-pref=[value not recorded]; Path=/",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Browsers reject the cookie, so the protection the prefix promises is absent (and the feature relying on it may silently fail).",
+   "remediation": "__Secure-: Secure + HTTPS. __Host-: Secure + HTTPS + Path=/ + no Domain.",
+   "refs": [
+    "CWE-1275",
+    "RFC 6265bis",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-SAMESITE-NONE-INSECURE-legacy",
+   "title": "Cookie 'legacy': SameSite=None without Secure",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login?case=3",
+    "http://shop.test/page?case=3"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "legacy=[value not recorded]; HttpOnly; SameSite=None",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Modern browsers reject it; older ones send it on every cross-site request.",
+   "remediation": "Add Secure to SameSite=None cookies.",
+   "refs": [
+    "CWE-1275",
+    "CWE-614",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-SAMESITE-NONE-INSECURE-tracker",
+   "title": "Cookie 'tracker': SameSite=None without Secure",
+   "severity": "low",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "tracker=[value not recorded]; SameSite=None",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Modern browsers reject it; older ones send it on every cross-site request.",
+   "remediation": "Add Secure to SameSite=None cookies.",
+   "refs": [
+    "CWE-1275",
+    "CWE-614",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-BROAD-PATH-PHPSESSID",
+   "title": "Cookie 'PHPSESSID': Path=/ set by a sub-path application",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "https://shop.test/account/login?case=3"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "PHPSESSID=[value not recorded]; path=/",
+     "location": "Set-Cookie"
+    },
+    {
+     "kind": "cookie",
+     "value": "PHPSESSID=[value not recorded]; Secure; HttpOnly",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Other applications on the same host receive the cookie (Path is not a strong boundary, but narrows exposure).",
+   "remediation": "If the app lives under /account/, set Path accordingly.",
+   "refs": [
+    "CWE-1275",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-BROAD-PATH-XSRF-TOKEN",
+   "title": "Cookie 'XSRF-TOKEN': Path=/ set by a sub-path application",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "XSRF-TOKEN=[value not recorded]; Path=/; Secure; SameSite=Strict",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Other applications on the same host receive the cookie (Path is not a strong boundary, but narrows exposure).",
+   "remediation": "If the app lives under /account/, set Path accordingly.",
+   "refs": [
+    "CWE-1275",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-BROAD-PATH-__Host-auth",
+   "title": "Cookie '__Host-auth': Path=/ set by a sub-path application",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "__Host-auth=[value not recorded]; Domain=shop.test; Path=/; Secure; HttpOnly; SameSite=Strict",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Other applications on the same host receive the cookie (Path is not a strong boundary, but narrows exposure).",
+   "remediation": "If the app lives under /account/, set Path accordingly.",
+   "refs": [
+    "CWE-1275",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-BROAD-PATH-csrftoken",
+   "title": "Cookie 'csrftoken': Path=/ set by a sub-path application",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login?case=3"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "csrftoken=[value not recorded]; Secure; SameSite=Strict",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Other applications on the same host receive the cookie (Path is not a strong boundary, but narrows exposure).",
+   "remediation": "If the app lives under /account/, set Path accordingly.",
+   "refs": [
+    "CWE-1275",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-BROAD-PATH-good_session",
+   "title": "Cookie 'good_session': Path=/ set by a sub-path application",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "good_session=[value not recorded]; Path=/; Secure; HttpOnly; SameSite=Strict",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Other applications on the same host receive the cookie (Path is not a strong boundary, but narrows exposure).",
+   "remediation": "If the app lives under /account/, set Path accordingly.",
+   "refs": [
+    "CWE-1275",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-BROAD-PATH-remember_me",
+   "title": "Cookie 'remember_me': Path=/ set by a sub-path application",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "remember_me=[value not recorded]; Domain=.shop.test; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=2592000",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Other applications on the same host receive the cookie (Path is not a strong boundary, but narrows exposure).",
+   "remediation": "If the app lives under /account/, set Path accordingly.",
+   "refs": [
+    "CWE-1275",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-NO-HTTPONLY-__Secure-pref",
+   "title": "Cookie '__Secure-pref': missing HttpOnly",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "__Secure-pref=[value not recorded]; Path=/",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Page scripts (and so any XSS) can read the cookie.",
+   "remediation": "Add HttpOnly unless client-side JavaScript genuinely needs the value.",
+   "refs": [
+    "CWE-1004",
+    "OWASP A05:2021",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-NO-HTTPONLY-pref",
+   "title": "Cookie 'pref': missing HttpOnly",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login?case=3",
+    "http://shop.test/page?case=3"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "pref=[value not recorded]",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Page scripts (and so any XSS) can read the cookie.",
+   "remediation": "Add HttpOnly unless client-side JavaScript genuinely needs the value.",
+   "refs": [
+    "CWE-1004",
+    "OWASP A05:2021",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-NO-HTTPONLY-tracker",
+   "title": "Cookie 'tracker': missing HttpOnly",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "tracker=[value not recorded]; SameSite=None",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Page scripts (and so any XSS) can read the cookie.",
+   "remediation": "Add HttpOnly unless client-side JavaScript genuinely needs the value.",
+   "refs": [
+    "CWE-1004",
+    "OWASP A05:2021",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-NO-SAMESITE-__Secure-pref",
+   "title": "Cookie '__Secure-pref': missing SameSite",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login",
+    "http://shop.test/page"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "__Secure-pref=[value not recorded]; Path=/",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Cross-site behavior depends on browser defaults (Lax in some, not all).",
+   "remediation": "Set SameSite=Lax (or Strict); use None only for real cross-site use, with Secure.",
+   "refs": [
+    "CWE-1275",
+    "OWASP A05:2021",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  },
+  {
+   "id": "COOKIE-NO-SAMESITE-pref",
+   "title": "Cookie 'pref': missing SameSite",
+   "severity": "info",
+   "confidence": "high",
+   "urls": [
+    "https://shop.test/account/login?case=3",
+    "http://shop.test/page?case=3"
+   ],
+   "evidence": [
+    {
+     "kind": "cookie",
+     "value": "pref=[value not recorded]",
+     "location": "Set-Cookie"
+    }
+   ],
+   "impact": "Cross-site behavior depends on browser defaults (Lax in some, not all).",
+   "remediation": "Set SameSite=Lax (or Strict); use None only for real cross-site use, with Secure.",
+   "refs": [
+    "CWE-1275",
+    "OWASP A05:2021",
+    "https://developer.mozilla.org/docs/Web/HTTP/Cookies"
+   ]
+  }
+ ]
+}

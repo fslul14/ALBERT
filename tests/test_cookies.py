@@ -2,7 +2,8 @@
 
 from pathlib import Path
 
-from albert.checks.cookies import check_cookies, parse_set_cookie, run_cookie_checks
+from albert.checks.cookies import parse_set_cookie
+from albert.core.engine import run_family
 from albert.core.models import CollectedResponse, Finding, Severity
 from albert.core.report import build_report_data
 
@@ -29,7 +30,7 @@ def test_parse() -> None:
 
 
 def test_fixture_findings() -> None:
-    found = by_id(check_cookies(load("shop_login.txt")))
+    found = by_id(run_family("cookies", [load("shop_login.txt")]))
     expected = {
         "COOKIE-NO-SECURE-PHPSESSID": Severity.MEDIUM,
         "COOKIE-NO-HTTPONLY-PHPSESSID": Severity.MEDIUM,
@@ -60,7 +61,7 @@ def test_per_cookie_ids_stay_distinct_but_group_across_pages() -> None:
             url, 200, (("Set-Cookie", "a=1; Path=/"), ("Set-Cookie", "b=2; Path=/"))
         )
 
-    grouped = run_cookie_checks([resp("https://x.test/1"), resp("https://x.test/2")])
+    grouped = run_family("cookies", [resp("https://x.test/1"), resp("https://x.test/2")])
     httponly = [f for f in grouped if f.id.startswith("COOKIE-NO-HTTPONLY-")]
     assert sorted(f.id for f in httponly) == ["COOKIE-NO-HTTPONLY-a", "COOKIE-NO-HTTPONLY-b"]
     assert all(f.urls == ("https://x.test/1", "https://x.test/2") for f in httponly)
@@ -72,14 +73,14 @@ def test_http_site_and_prefix_over_http() -> None:
         200,
         (("Set-Cookie", "sid=1; HttpOnly; SameSite=Lax"), ("Set-Cookie", "__Secure-x=1; Secure")),
     )
-    ids = {f.id for f in check_cookies(r)}
+    ids = {f.id for f in run_family("cookies", [r])}
     assert "COOKIE-NO-SECURE-sid" not in ids  # moot without HTTPS (HSTS/TLS checks cover that)
     assert "COOKIE-PREFIX-MISUSE-__Secure-x" in ids
 
 
 def test_cookie_values_never_reported() -> None:
     cookie_value = "deadbeef0123"
-    data = build_report_data_for(check_cookies(load("shop_login.txt")))
+    data = build_report_data_for(run_family("cookies", [load("shop_login.txt")]))
     assert cookie_value not in data
     assert "PHPSESSID=[value not recorded]; path=/" in data
 

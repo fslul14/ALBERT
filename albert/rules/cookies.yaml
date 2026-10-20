@@ -1,0 +1,65 @@
+# Cookie-attribute rules (family: cookies), applied to each Set-Cookie as served.
+# Ids/titles take {cookie} (name as served) and {cookie_id} (filename-safe name) so every cookie
+# gets its own finding. Domain/Path/prefix checks need logic and stay in checks/cookies.py.
+# Validate: albert rules lint
+
+# Names that usually carry a session or credential: their findings are escalated.
+x-sensitive-cookie: &sensitive "(?i)sess|sid$|^sid|auth|token|jwt|login|remember|identity|access|refresh|csrf|xsrf|^connect\\.sid$|phpsessid|jsessionid|asp\\.net_sessionid|^_?session$|_session$"
+
+rules:
+- id: COOKIE-NO-SECURE-{cookie_id}
+  title: "Cookie '{cookie}': missing Secure"
+  severity: low
+  escalate:
+  - cookie_name_matches: *sensitive
+    severity: medium
+  confidence: high
+  impact: The cookie is also sent over plain HTTP, where it can be intercepted.
+  remediation: Add the Secure attribute.
+  refs: [CWE-614, "OWASP A05:2021", "https://developer.mozilla.org/docs/Web/HTTP/Cookies"]
+  applies_to:
+    https: true
+  match:
+    cookie:
+      flag_missing: secure
+
+- id: COOKIE-NO-HTTPONLY-{cookie_id}
+  title: "Cookie '{cookie}': missing HttpOnly"
+  severity: info
+  escalate:
+  - cookie_name_matches: *sensitive
+    severity: medium
+  confidence: high
+  impact: Page scripts (and so any XSS) can read the cookie.
+  remediation: Add HttpOnly unless client-side JavaScript genuinely needs the value.
+  refs: [CWE-1004, "OWASP A05:2021", "https://developer.mozilla.org/docs/Web/HTTP/Cookies"]
+  match:
+    cookie:
+      flag_missing: httponly
+      name_not_matches: "(?i)csrf|xsrf"  # CSRF tokens are often meant to be JS-readable
+
+- id: COOKIE-NO-SAMESITE-{cookie_id}
+  title: "Cookie '{cookie}': missing SameSite"
+  severity: info
+  escalate:
+  - cookie_name_matches: *sensitive
+    severity: low
+  confidence: high
+  impact: Cross-site behavior depends on browser defaults (Lax in some, not all).
+  remediation: Set SameSite=Lax (or Strict); use None only for real cross-site use, with Secure.
+  refs: [CWE-1275, "OWASP A05:2021", "https://developer.mozilla.org/docs/Web/HTTP/Cookies"]
+  match:
+    cookie:
+      samesite: missing
+
+- id: COOKIE-SAMESITE-NONE-INSECURE-{cookie_id}
+  title: "Cookie '{cookie}': SameSite=None without Secure"
+  severity: low
+  confidence: high
+  impact: Modern browsers reject it; older ones send it on every cross-site request.
+  remediation: Add Secure to SameSite=None cookies.
+  refs: [CWE-1275, CWE-614, "https://developer.mozilla.org/docs/Web/HTTP/Cookies"]
+  match:
+    cookie:
+      samesite: none
+      flag_missing: secure

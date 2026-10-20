@@ -1,0 +1,236 @@
+# Header rules (family: headers). Pattern-style checks only; anything needing parsing
+# or cross-field logic stays in albert/checks/headers.py. Validate: albert rules lint
+
+rules:
+- id: HDR-NOSNIFF-MISSING
+  title: 'X-Content-Type-Options: nosniff missing'
+  severity: low
+  confidence: high
+  impact: Browsers may MIME-sniff responses into executable types.
+  remediation: 'Send X-Content-Type-Options: nosniff on all responses.'
+  refs:
+  - CWE-693
+  - OWASP A05:2021
+  applies_to:
+    status: success
+  match:
+    header: X-Content-Type-Options
+    missing_or_not:
+    - nosniff
+- id: HDR-PERMISSIONS-MISSING
+  title: Permissions-Policy not set
+  severity: info
+  confidence: high
+  impact: Embedded content may request powerful features (camera, geolocation, ...).
+  remediation: Send Permissions-Policy disabling unused features, e.g. camera=(), microphone=().
+  refs:
+  - CWE-693
+  applies_to:
+    document: true
+  match:
+    header: Permissions-Policy
+    missing_or: []
+- id: HDR-COOP-MISSING
+  title: Cross-Origin-Opener-Policy not set
+  severity: info
+  confidence: high
+  impact: Cross-origin windows keep a reference to this page (XS-Leaks, tabnabbing).
+  remediation: 'Send Cross-Origin-Opener-Policy: same-origin (or same-origin-allow-popups).'
+  refs:
+  - CWE-1021
+  applies_to:
+    document: true
+  match:
+    header: Cross-Origin-Opener-Policy
+    missing_or:
+    - unsafe-none
+- id: HDR-COEP-MISSING
+  title: Cross-Origin-Embedder-Policy not set
+  severity: info
+  confidence: high
+  impact: The page is not cross-origin isolated (needed for Spectre-hardening features).
+  remediation: 'If isolation is wanted, send Cross-Origin-Embedder-Policy: require-corp.'
+  refs:
+  - CWE-1021
+  applies_to:
+    document: true
+  match:
+    header: Cross-Origin-Embedder-Policy
+    missing_or:
+    - unsafe-none
+- id: HDR-CORP-MISSING
+  title: Cross-Origin-Resource-Policy not set
+  severity: info
+  confidence: high
+  impact: Other origins can embed this resource (Spectre-style side channels).
+  remediation: 'Send Cross-Origin-Resource-Policy: same-origin (or same-site).'
+  refs:
+  - CWE-1021
+  applies_to:
+    status: success
+  match:
+    header: Cross-Origin-Resource-Policy
+    missing_or: []
+- id: HDR-VERSION-BANNER
+  title: Software version disclosed in headers
+  severity: low
+  confidence: high
+  impact: Exact versions make it trivial to match known CVEs.
+  remediation: Remove versions from Server/X-Powered-By (e.g. ServerTokens Prod, expose_php Off).
+  refs:
+  - CWE-497
+  - OWASP A05:2021
+  match:
+    headers:
+    - server
+    - x-powered-by
+    - x-aspnet-version
+    - x-aspnetmvc-version
+    - x-generator
+    - x-powered-cms
+    value_matches: \d+\.\d+|/\d
+- id: HDR-TECH-BANNER
+  title: Technology disclosed in headers
+  severity: info
+  confidence: high
+  impact: Reveals the stack, aiding targeted attacks.
+  remediation: Remove X-Powered-By and similar headers.
+  refs:
+  - CWE-497
+  match:
+    headers:
+    - x-powered-by
+    - x-aspnet-version
+    - x-aspnetmvc-version
+    - x-generator
+    - x-powered-cms
+    value_not_matches: \d+\.\d+|/\d
+- id: HDR-DEPRECATED-X-XSS-PROTECTION
+  title: 'Deprecated header: x-xss-protection'
+  severity: info
+  confidence: high
+  impact: XSS auditor removed from browsers; set 0 or drop it, rely on CSP.
+  remediation: Remove x-xss-protection.
+  refs:
+  - OWASP A05:2021
+  match:
+    header: x-xss-protection
+    present: true
+    unless:
+    - '0'
+- id: HDR-DEPRECATED-EXPECT-CT
+  title: 'Deprecated header: expect-ct'
+  severity: info
+  confidence: high
+  impact: Obsolete; browsers enforce Certificate Transparency.
+  remediation: Remove expect-ct.
+  refs:
+  - OWASP A05:2021
+  match:
+    header: expect-ct
+    present: true
+- id: HDR-DEPRECATED-PUBLIC-KEY-PINS
+  title: 'Deprecated header: public-key-pins'
+  severity: low
+  confidence: high
+  impact: HPKP removed from browsers; stale pins can lock out legacy clients.
+  remediation: Remove public-key-pins.
+  refs:
+  - OWASP A05:2021
+  match:
+    header: public-key-pins
+    present: true
+- id: HDR-DEPRECATED-PUBLIC-KEY-PINS-REPORT-ONLY
+  title: 'Deprecated header: public-key-pins-report-only'
+  severity: info
+  confidence: high
+  impact: HPKP removed from browsers.
+  remediation: Remove public-key-pins-report-only.
+  refs:
+  - OWASP A05:2021
+  match:
+    header: public-key-pins-report-only
+    present: true
+- id: HDR-DEPRECATED-FEATURE-POLICY
+  title: 'Deprecated header: feature-policy'
+  severity: info
+  confidence: high
+  impact: Replaced by Permissions-Policy.
+  remediation: Remove feature-policy.
+  refs:
+  - OWASP A05:2021
+  match:
+    header: feature-policy
+    present: true
+- id: HDR-DEPRECATED-P3P
+  title: 'Deprecated header: p3p'
+  severity: info
+  confidence: high
+  impact: Obsolete privacy header, ignored by browsers.
+  remediation: Remove p3p.
+  refs:
+  - OWASP A05:2021
+  match:
+    header: p3p
+    present: true
+- id: HDR-DEPRECATED-X-CONTENT-SECURITY-POLICY
+  title: 'Deprecated header: x-content-security-policy'
+  severity: info
+  confidence: high
+  impact: Prefixed CSP; use Content-Security-Policy.
+  remediation: Remove x-content-security-policy.
+  refs:
+  - OWASP A05:2021
+  match:
+    header: x-content-security-policy
+    present: true
+- id: HDR-DEPRECATED-X-WEBKIT-CSP
+  title: 'Deprecated header: x-webkit-csp'
+  severity: info
+  confidence: high
+  impact: Prefixed CSP; use Content-Security-Policy.
+  remediation: Remove x-webkit-csp.
+  refs:
+  - OWASP A05:2021
+  match:
+    header: x-webkit-csp
+    present: true
+- id: HDR-DEBUG-HEADER
+  title: Debug/profiler header exposed
+  severity: medium
+  confidence: medium
+  impact: Debug tooling (e.g. Symfony profiler, ChromeLogger) can leak config, queries, secrets.
+  remediation: Disable debug mode/profilers in production.
+  refs:
+  - CWE-215
+  - CWE-489
+  - OWASP A05:2021
+  match:
+    headers:
+    - x-chromelogger-data
+    - x-chromephp-data
+    - x-debug
+    - x-debug-info
+    - x-debug-mode
+    - x-debug-token
+    - x-debug-token-link
+    each_present: true
+- id: HDR-BACKEND-DISCLOSED
+  title: Backend/internal server identity disclosed
+  severity: low
+  confidence: medium
+  impact: Internal host names or upstreams aid reconnaissance.
+  remediation: Strip backend-identifying headers at the proxy/load balancer.
+  refs:
+  - CWE-200
+  match:
+    headers:
+    - x-backend
+    - x-backend-server
+    - x-forwarded-server
+    - x-host
+    - x-originating-ip
+    - x-real-server
+    - x-server-name
+    - x-upstream
+    each_present: true

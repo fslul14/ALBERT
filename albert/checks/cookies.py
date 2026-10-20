@@ -31,7 +31,6 @@ _SENSITIVE = re.compile(
     r"^connect\.sid$|phpsessid|jsessionid|asp\.net_sessionid|^_?session$|_session$",
     re.I,
 )
-_CSRF = re.compile(r"csrf|xsrf", re.I)
 
 
 @dataclass(frozen=True)
@@ -82,8 +81,15 @@ def parse_set_cookie(header: str) -> SetCookie | None:
     return SetCookie(name, attrs, frozenset(flags), rest.strip())
 
 
-def _safe_name(name: str) -> str:
+def cookie_id_part(name: str) -> str:
+    """Cookie name made safe for a finding id."""
     return re.sub(r"[^A-Za-z0-9_.-]", "_", name)[:64]
+
+
+def cookie_evidence(cookie: SetCookie) -> Evidence:
+    """Set-Cookie evidence without the value; shared with the YAML rule engine."""
+    attrs = f"; {cookie.raw_attrs}" if cookie.raw_attrs else ""
+    return Evidence("cookie", f"{cookie.name}=[value not recorded]{attrs}", "Set-Cookie")
 
 
 def _hit(
@@ -96,79 +102,17 @@ def _hit(
     fix: str,
     refs: tuple[str, ...],
 ) -> Finding:
-    shown = f"{cookie.name}=[value not recorded]" + (
-        f"; {cookie.raw_attrs}" if cookie.raw_attrs else ""
-    )
     return Finding(
-        id=f"COOKIE-{code}-{_safe_name(cookie.name)}",
+        id=f"COOKIE-{code}-{cookie_id_part(cookie.name)}",
         title=f"Cookie '{cookie.name}': {title}",
         severity=severity,
         confidence=Confidence.HIGH,
         urls=(resp.url,),
-        evidence=(Evidence("cookie", shown, "Set-Cookie"),),
+        evidence=(cookie_evidence(cookie),),
         impact=impact,
         remediation=fix,
         refs=(*refs, MDN),
     )
-
-
-def _flag_checks(resp: CollectedResponse, c: SetCookie) -> list[Finding]:
-    out = []
-    sens = c.sensitive
-    if resp.is_https and not c.secure:
-        out.append(
-            _hit(
-                resp,
-                c,
-                "NO-SECURE",
-                "missing Secure",
-                S.MEDIUM if sens else S.LOW,
-                "The cookie is also sent over plain HTTP, where it can be intercepted.",
-                "Add the Secure attribute.",
-                ("CWE-614", A05),
-            )
-        )
-    if not c.httponly and not _CSRF.search(c.name):
-        out.append(
-            _hit(
-                resp,
-                c,
-                "NO-HTTPONLY",
-                "missing HttpOnly",
-                S.MEDIUM if sens else S.INFO,
-                "Page scripts (and so any XSS) can read the cookie.",
-                "Add HttpOnly unless client-side JavaScript genuinely needs the value.",
-                ("CWE-1004", A05),
-            )
-        )
-    samesite = c.samesite
-    if samesite is None:
-        out.append(
-            _hit(
-                resp,
-                c,
-                "NO-SAMESITE",
-                "missing SameSite",
-                S.LOW if sens else S.INFO,
-                "Cross-site behavior depends on browser defaults (Lax in some, not all).",
-                "Set SameSite=Lax (or Strict); use None only for real cross-site use, with Secure.",
-                ("CWE-1275", A05),
-            )
-        )
-    elif samesite == "none" and not c.secure:
-        out.append(
-            _hit(
-                resp,
-                c,
-                "SAMESITE-NONE-INSECURE",
-                "SameSite=None without Secure",
-                S.LOW,
-                "Modern browsers reject it; older ones send it on every cross-site request.",
-                "Add Secure to SameSite=None cookies.",
-                ("CWE-1275", "CWE-614"),
-            )
-        )
-    return out
 
 
 def _scope_checks(resp: CollectedResponse, c: SetCookie) -> list[Finding]:
@@ -240,13 +184,12 @@ def _prefix_checks(resp: CollectedResponse, c: SetCookie) -> list[Finding]:
 
 
 def check_cookies(resp: CollectedResponse) -> list[Finding]:
-    """All cookie checks for one response."""
+    """Domain/Path/prefix checks for one response (flag checks: rules/cookies.yaml)."""
     out: list[Finding] = []
     for header in resp.header_all("set-cookie"):
         cookie = parse_set_cookie(header)
         if cookie is None:
             continue
-        out += _flag_checks(resp, cookie)
         out += _scope_checks(resp, cookie)
         out += _prefix_checks(resp, cookie)
     return out

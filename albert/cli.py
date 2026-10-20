@@ -12,6 +12,7 @@ from albert import __version__
 from albert.config import DEFAULT_SCOPE_PATH, Scope, ScopeError, append_scope_entry, load_scope
 from albert.core.browser import RenderLimits
 from albert.core.crawler import CrawlLimits, state_path_for
+from albert.core.engine import RULES_DIR, lint_rules
 from albert.core.models import ScanResult, Target
 from albert.core.report import write_report
 from albert.quick import run_quick, run_tls_only
@@ -47,7 +48,25 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--resume", action="store_true", help="continue an interrupted scan")
     scan.add_argument("--render", action="store_true", help="render pages in headless Chromium")
     scan.add_argument("--render-max", type=int, default=RenderLimits.max_pages)
+    rules = sub.add_parser("rules", help="validate or list the YAML rules")
+    rules.add_argument("action", choices=["lint", "list"])
+    rules.add_argument("--dir", type=Path, default=RULES_DIR, help="rules directory")
     return parser
+
+
+def _cmd_rules(args: argparse.Namespace) -> int:
+    rules, problems = lint_rules(args.dir)
+    if args.action == "lint":
+        for problem in problems:
+            print(f"  {problem}", file=sys.stderr)
+        verdict = f"{len(problems)} problem(s)" if problems else "OK"
+        print(f"{len(rules)} valid rule(s) in {args.dir}: {verdict}")
+        return 1 if problems else 0
+    for r in sorted(rules, key=lambda r: (r.family, r.id)):
+        print(f"{r.family:8} {r.severity.label:8} {r.confidence.label:6} {r.id:42} {r.title}")
+    if problems:
+        print(f"({len(problems)} invalid rule(s) skipped; run: albert rules lint)", file=sys.stderr)
+    return 1 if problems else 0
 
 
 def _ask_url() -> str:
@@ -131,6 +150,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_quick(args)
     if args.command == "scan":
         return _cmd_scan(args)
+    if args.command == "rules":
+        return _cmd_rules(args)
     parser.print_help()
     return 0
 

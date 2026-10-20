@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from albert.checks import headers as h
+from albert.core.engine import run_family
 from albert.core.models import CollectedResponse, Finding, Severity
 
 FIXTURES = Path(__file__).parent / "fixtures" / "headers"
@@ -32,7 +33,7 @@ def ids(findings: list[Finding]) -> set[str]:
 
 
 def test_bare_apache() -> None:
-    found = h.run_header_checks([load("bare_apache.txt", "https://shop.test/account/login")])
+    found = run_family("headers", [load("bare_apache.txt", "https://shop.test/account/login")])
     assert ids(found) == {
         "HDR-CSP-MISSING",
         "HDR-CLICKJACKING",
@@ -54,7 +55,7 @@ def test_bare_apache() -> None:
 
 
 def test_weak() -> None:
-    found = h.run_header_checks([load("weak.txt", "https://app.test/")])
+    found = run_family("headers", [load("weak.txt", "https://app.test/")])
     assert ids(found) == {
         "HDR-CSP-UNSAFE-INLINE",
         "HDR-CSP-UNSAFE-EVAL",
@@ -81,19 +82,20 @@ def test_weak() -> None:
 
 
 def test_hardened_only_info() -> None:
-    found = h.run_header_checks([load("hardened.txt", "https://secure.test/")])
+    found = run_family("headers", [load("hardened.txt", "https://secure.test/")])
     assert ids(found) == {"HDR-PROTOCOLS"}
 
 
 def test_severity_is_honest() -> None:
-    found = h.run_header_checks(
-        [load(n, "https://a.test/login") for n in ("bare_apache.txt", "weak.txt", "hardened.txt")]
+    found = run_family(
+        "headers",
+        [load(n, "https://a.test/login") for n in ("bare_apache.txt", "weak.txt", "hardened.txt")],
     )
     assert max(f.severity for f in found) <= Severity.MEDIUM
 
 
 def test_groups_across_pages() -> None:
-    found = h.run_header_checks([resp("https://x.test/a"), resp("https://x.test/b")])
+    found = run_family("headers", [resp("https://x.test/a"), resp("https://x.test/b")])
     csp = [f for f in found if f.id == "HDR-CSP-MISSING"]
     assert len(csp) == 1
     assert csp[0].urls == ("https://x.test/a", "https://x.test/b")
@@ -150,7 +152,8 @@ def test_sensitive_cache_and_lab_private_ip() -> None:
     }
     assert h.check_cache_control(resp("https://x.test/blog/post")) == []
     lab = resp("http://localhost:3000/", X_Upstream="10.0.0.5:3000")
-    assert ids(h.check_leaky_headers(lab)) == {"HDR-BACKEND-DISCLOSED"}
+    leaky = {"HDR-BACKEND-DISCLOSED", "HDR-INTERNAL-IP"}
+    assert ids(run_family("headers", [lab])) & leaky == {"HDR-BACKEND-DISCLOSED"}
 
 
 def test_protocols_http11_not_observed() -> None:
