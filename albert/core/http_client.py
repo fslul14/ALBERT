@@ -29,7 +29,7 @@ class FetchError(Exception):
 
 
 MAX_TEXT_CHARS = 2_000_000
-_TEXTUAL = re.compile(r"^(?:text/|application/(?:[\w.+-]*\+)?(?:json|xml|javascript)\b)")
+_TEXTUAL = re.compile(r"^(?:text/|application/(?:[\w.+-]*[+-])?(?:json|xml|javascript)\b)")
 
 
 @dataclass(frozen=True)

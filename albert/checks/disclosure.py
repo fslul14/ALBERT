@@ -137,12 +137,12 @@ _DEV_NOTE = re.compile(
     r"do not (?:deploy|commit|ship)|debug(?:ging)? only|test(?:ing)? only|dev(?:elopment)? only|"
     r"workaround)\b)"
 )
-_INTERNAL_HOST = re.compile(
+INTERNAL_HOST = re.compile(
     r"(?:(?<=//)|(?<=@)|(?<=[\"'\s(]))((?:[a-z0-9-]+\.)+(?:local|internal|intranet|corp|lan|"
     r"localdomain|home\.arpa|priv|private))(?=[:/\"'\s)]|$)",
     re.I,
 )
-_LOCAL_URL = re.compile(
+LOCAL_URL = re.compile(
     r"https?://(?:localhost|127\.0\.0\.1|0\.0\.0\.0|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|"
     r"172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})(?::\d+)?[^\s\"'<>`)]*",
     re.I,
@@ -218,7 +218,7 @@ def _comments(html: str) -> list[str]:
     return out
 
 
-def _is_lab_host(url: str) -> bool:
+def is_lab_host(url: str) -> bool:
     host = urlsplit(url).hostname or ""
     if host == "localhost":
         return True
@@ -427,9 +427,9 @@ def check_source_leaks(resp: CollectedResponse) -> list[Finding]:
         return []
     src = resp.text
     out = []
-    if not _is_lab_host(resp.url):
+    if not is_lab_host(resp.url):
         hosts = dict.fromkeys(
-            [m.group(1).lower() for m in _INTERNAL_HOST.finditer(src)] + _LOCAL_URL.findall(src)
+            [m.group(1).lower() for m in INTERNAL_HOST.finditer(src)] + LOCAL_URL.findall(src)
         )
         if hosts:
             out.append(

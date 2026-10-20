@@ -30,7 +30,7 @@ from playwright.async_api import (
 )
 
 from albert.core.http_client import FetchError, HttpClient
-from albert.core.models import RenderedPage, SubRequest
+from albert.core.models import CollectedResponse, RenderedPage, SubRequest
 from albert.core.scope import OutOfScopeError, ScopePolicy
 
 CHROMIUM_ARGS = (
@@ -46,6 +46,7 @@ CHROMIUM_ARGS = (
     "--no-first-run",
     "--no-pings",
 )
+MAX_SCRIPT_BYTES = 2_000_000
 _DROP_RESPONSE_HEADERS = {
     "content-encoding",
     "content-length",
@@ -79,6 +80,7 @@ class _PageRecorder:
         self.client = client
         self.limits = limits
         self.requests: list[SubRequest] = []
+        self.scripts: list[CollectedResponse] = []
 
     def _add(self, req: Request, outcome: str, status: int | None = None, note: str = "") -> None:
         self.requests.append(
@@ -107,6 +109,9 @@ class _PageRecorder:
             await route.abort("blockedbyclient")
             return
         self._add(req, "fetched", raw.status)
+        if req.resource_type == "script" and raw.status == 200:
+            text = raw.body[:MAX_SCRIPT_BYTES].decode("utf-8", errors="replace")
+            self.scripts.append(CollectedResponse(raw.url, raw.status, raw.headers, text=text))
         headers = {k: v for k, v in raw.headers if k.lower() not in _DROP_RESPONSE_HEADERS}
         await route.fulfill(status=raw.status, headers=headers, body=raw.body)
 
@@ -146,7 +151,9 @@ async def _render_one(
         error, dom = f"render failed: {str(e).splitlines()[0]}", ""
     final_url = page.url
     await page.close()
-    return RenderedPage(url, final_url, dom, tuple(recorder.requests), error)
+    return RenderedPage(
+        url, final_url, dom, tuple(recorder.requests), error, tuple(recorder.scripts)
+    )
 
 
 async def render_pages(

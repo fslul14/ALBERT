@@ -259,6 +259,7 @@ class RenderedPage:
     dom: str
     requests: tuple[SubRequest, ...] = ()
     error: str | None = None
+    scripts: tuple[CollectedResponse, ...] = ()  # bodies of in-scope scripts it fetched
 
 
 @dataclass(frozen=True)

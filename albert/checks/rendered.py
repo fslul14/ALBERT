@@ -20,7 +20,7 @@ from albert.core.models import (
     Severity,
     group_findings,
 )
-from albert.core.secrets import PATTERNS
+from albert.core.secrets import PATTERN_SEVERITY, PATTERNS
 
 S, C = Severity, Confidence
 A02, A05, A08 = "OWASP A02:2021", "OWASP A05:2021", "OWASP A08:2021"
@@ -42,23 +42,10 @@ _PASSIVE_SELECTORS = (
 )
 _DEFAULT_PORT = {"http": 80, "https": 443}
 
-_SECRET_SEVERITY = {
-    "private_key": S.HIGH,
-    "aws_access_key_id": S.HIGH,
-    "github_token": S.HIGH,
-    "github_fine_grained_pat": S.HIGH,
-    "gitlab_token": S.HIGH,
-    "slack_token": S.HIGH,
-    "slack_webhook": S.MEDIUM,
-    "stripe_key": S.HIGH,
-    "google_oauth_secret": S.HIGH,
-    "anthropic_key": S.HIGH,
-    "openai_key": S.HIGH,
-    "sendgrid_key": S.HIGH,
-    "npm_token": S.HIGH,
-    "azure_storage_key": S.HIGH,
-    "google_api_key": S.LOW,  # often public by design; restrict it
-}
+
+def secret_severity(pattern_name: str) -> Severity:
+    """Severity for a secret of this type found in served content (shared with JS checks)."""
+    return Severity.from_label(PATTERN_SEVERITY.get(pattern_name, "medium"))
 
 
 def _origin(url: str) -> tuple[str, str, int]:
@@ -326,7 +313,7 @@ def check_dom_secrets(page: RenderedPage) -> list[Finding]:
                 page,
                 f"RND-SECRET-{pat.name.upper()}",
                 f"Secret visible in rendered page ({pat.name})",
-                _SECRET_SEVERITY.get(pat.name, S.MEDIUM),
+                secret_severity(pat.name),
                 C.MEDIUM,
                 [Evidence("dom", s, pat.name) for s in dict.fromkeys(snippets)],
                 "Anyone loading the page can read it; treat it as compromised.",

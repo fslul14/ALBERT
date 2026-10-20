@@ -109,6 +109,18 @@ def extract_links(base_url: str, html: str) -> list[str]:
     return links
 
 
+def script_links(base_url: str, html: str) -> list[str]:
+    """Absolute URLs of external scripts (<script src>), honoring <base href>."""
+    tree = LexborHTMLParser(html)
+    base_node = tree.css_first("base[href]")
+    base = urljoin(base_url, base_node.attributes.get("href") or "") if base_node else base_url
+    return [
+        urljoin(base, (node.attributes.get("src") or "").strip())
+        for node in tree.css("script[src]")
+        if (node.attributes.get("src") or "").strip()
+    ]
+
+
 def sitemap_locs(xml: str) -> list[str]:
     """<loc> values from a sitemap or sitemap index (regex, not an XML parser: no entity risk)."""
     return [unescape(m) for m in _LOC.findall(xml)]
@@ -161,6 +173,7 @@ class CrawlLimits:
     max_blocks: int = 3  # 429/503/WAF responses before the crawl stops
     backoff: float = 5.0  # seconds to pause after a block (Retry-After honored, capped)
     max_backoff: float = 30.0
+    max_scripts: int = 50  # same-host <script src> files fetched for JS analysis (0: none)
 
 
 @dataclass
@@ -175,6 +188,7 @@ class CrawlResult:
     notes: list[str] = field(default_factory=list)
     resumed: int = 0  # responses loaded from state instead of re-fetched
     aux: list[CollectedResponse] = field(default_factory=list)  # robots.txt, sitemaps
+    scripts: list[CollectedResponse] = field(default_factory=list)  # same-host JS files
 
 
 class Crawler:
@@ -217,6 +231,7 @@ class Crawler:
         self._client: HttpClient | None = None
         self._loading = False  # replaying resume state: don't re-append it
         self._unsaved_links = 0
+        self._script_urls: dict[str, None] = {}  # ordered set
 
     # -- bookkeeping --
 
@@ -350,6 +365,37 @@ class Crawler:
         if resp.status == 200 and resp.content_type in {"text/html", "application/xhtml+xml"}:
             for link in extract_links(resp.url, resp.text):
                 self.enqueue(link, depth + 1)
+            for src in script_links(resp.url, resp.text):
+                self._note_script(src)
+
+    def _note_script(self, url: str) -> None:
+        """Remember a same-host <script src> (fetched after the crawl, for JS analysis)."""
+        norm = normalize_url(url)
+        if norm is None or norm in self._script_urls:
+            return
+        if urlsplit(norm).hostname != self.host:
+            return  # third-party scripts are never fetched
+        self._script_urls[norm] = None
+
+    async def _fetch_scripts(self) -> None:
+        for url in list(self._script_urls)[: self.limits.max_scripts]:
+            if self._stop_reason:
+                return
+            if not self._robots_allows(url):
+                self._skip(url, "disallowed by robots.txt")
+                continue
+            try:
+                hops = await self._fetch(url)
+            except BudgetExceededError as e:
+                self._stop(str(e))
+                return
+            if hops and hops[-1].status == 200 and hops[-1].text:
+                self.result.scripts.append(hops[-1])
+        if len(self._script_urls) > self.limits.max_scripts:
+            extra = len(self._script_urls) - self.limits.max_scripts
+            self.result.notes.append(
+                f"script cap of {self.limits.max_scripts} reached ({extra} not fetched)"
+            )
 
     # -- network --
 
@@ -497,6 +543,8 @@ class Crawler:
                 for w in workers:
                     w.cancel()
                 await asyncio.gather(*workers, return_exceptions=True)
+            if self._fatal is None and self.limits.max_scripts > 0:
+                await self._fetch_scripts()
         if self._unsaved_links:
             self.result.notes.append(
                 f"{self._unsaved_links} link(s) with secret-like tokens not saved for resume"

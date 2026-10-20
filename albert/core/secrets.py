@@ -65,6 +65,26 @@ PATTERNS: tuple[SecretPattern, ...] = (
     ),
 )
 
+# Severity label when a pattern matches content a site serves (DOM, JS). Unlisted: medium.
+PATTERN_SEVERITY: dict[str, str] = {
+    "private_key": "high",
+    "aws_access_key_id": "high",
+    "github_token": "high",
+    "github_fine_grained_pat": "high",
+    "gitlab_token": "high",
+    "slack_token": "high",
+    "slack_webhook": "medium",
+    "stripe_key": "high",
+    "google_oauth_secret": "high",
+    "anthropic_key": "high",
+    "openai_key": "high",
+    "sendgrid_key": "high",
+    "npm_token": "high",
+    "azure_storage_key": "high",
+    "google_api_key": "low",  # often public by design; it should be restricted
+    "generic_secret": "low",
+}
+
 # High-entropy candidates: base64/url-safe runs. Pure hex is excluded on purpose:
 # asset hashes and commit SHAs are everywhere and benign.
 _ENTROPY_CANDIDATE = re.compile(r"(?<![A-Za-z0-9+/_=-])[A-Za-z0-9+/_=-]{32,}(?![A-Za-z0-9+/_=-])")
@@ -108,11 +128,26 @@ def _substitute(m: re.Match[str], pat: SecretPattern) -> str:
 
 def redact(text: str, *, entropy: bool = True) -> str:
     """Replace every detected secret in ``text`` with a marker. Idempotent."""
+    return redact_with_matches(text, entropy=entropy)[0]
+
+
+def redact_with_matches(text: str, *, entropy: bool = True) -> tuple[str, list[tuple[str, str]]]:
+    """``redact`` that also returns (pattern name, secret) for each replacement, in order.
+
+    Each secret is attributed to the first pattern that replaced it, so one token is never
+    counted twice. Entropy-only replacements are not listed.
+    """
+    found: list[tuple[str, str]] = []
+
+    def sub(m: re.Match[str], pat: SecretPattern) -> str:
+        found.append((pat.name, m.group(pat.group)))
+        return _substitute(m, pat)
+
     for pat in PATTERNS:
-        text = pat.regex.sub(lambda m, p=pat: _substitute(m, p), text)  # type: ignore[misc]
+        text = pat.regex.sub(lambda m, p=pat: sub(m, p), text)  # type: ignore[misc]
     if entropy:
         text = _ENTROPY_CANDIDATE.sub(_entropy_substitute, text)
-    return text
+    return text, found
 
 
 def _entropy_substitute(m: re.Match[str]) -> str:
