@@ -5,12 +5,14 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Sequence
 
 from albert.checks.headers import run_header_checks
+from albert.checks.security_txt import run_security_txt_checks
 from albert.core.models import CollectedResponse, Finding, ScanResult
 
 CheckFamily = Callable[[Sequence[CollectedResponse]], list[Finding]]
 
 FAMILIES: dict[str, CheckFamily] = {
     "headers": run_header_checks,
+    "security_txt": run_security_txt_checks,
 }
 
 

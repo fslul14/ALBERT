@@ -26,26 +26,29 @@ def test_quick_writes_report(tmp_path: Path, capsys: pytest.CaptureFixture[str])
             200, headers={"Content-Type": "text/html", "Server": "nginx/1.18.0"}, text="<html>"
         )
     )
+    respx.route().mock(return_value=httpx.Response(404))
     assert main(["quick", "http://site.test/", "--out", str(tmp_path)]) == 0
     md = next(tmp_path.glob("site.test_*.md")).read_text(encoding="utf-8")
     data = json.loads(next(tmp_path.glob("site.test_*.json")).read_text(encoding="utf-8"))
     ids = {f["id"] for f in data["findings"]}
     assert {"HDR-CSP-MISSING", "HDR-HSTS-MISSING", "HDR-VERSION-BANNER"} <= ids
-    assert data["appendix"]["pages"] == ["http://site.test/", "https://site.test/"]
+    assert data["appendix"]["pages"][:2] == ["http://site.test/", "https://site.test/"]
+    assert "**Notes:**" in md and "redirect 301" in md
     assert "HDR-PROTOCOLS" in md and "not observed" in md
     assert "site.test:" in capsys.readouterr().out
 
 
 @respx.mock
-def test_quick_records_off_scope_redirect(tmp_path: Path) -> None:
+def test_quick_records_cross_domain_redirect(tmp_path: Path) -> None:
     respx.get("https://apex.test/").mock(
-        return_value=httpx.Response(301, headers={"Location": "https://www.apex.test/"})
+        return_value=httpx.Response(301, headers={"Location": "https://other.test/"})
     )
-    www = respx.get("https://www.apex.test/").mock(return_value=httpx.Response(200))
+    other = respx.route(host="other.test").mock(return_value=httpx.Response(200))
+    respx.route().mock(return_value=httpx.Response(404))
     assert main(["quick", "apex.test", "--out", str(tmp_path)]) == 0
     data = json.loads(next(tmp_path.glob("apex.test_*.json")).read_text(encoding="utf-8"))
     assert "not followed" in data["appendix"]["skipped"][0]
-    assert not www.called
+    assert not other.called
 
 
 def test_quick_prompts_for_url(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

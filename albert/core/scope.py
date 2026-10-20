@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from functools import lru_cache
 from urllib.parse import urlsplit
 
-from albert.core.models import Target
+from publicsuffixlist import PublicSuffixList
+
+from albert.core.models import ScanMode, Target
 
 ALLOWED_METHODS = frozenset({"GET", "HEAD"})
 ALLOWED_SCHEMES = frozenset({"http", "https"})
@@ -44,12 +47,31 @@ def normalize_host(raw: str) -> str:
     return host
 
 
+@lru_cache(maxsize=1)
+def _psl() -> PublicSuffixList:
+    return PublicSuffixList()  # bundled list; never fetched at runtime
+
+
+def registrable_domain(host: str) -> str | None:
+    """eTLD+1 per the Public Suffix List, private section included (alice.github.io and
+    bob.github.io differ). None for IPs, single-label hosts, and bare public suffixes."""
+    try:
+        h = normalize_host(host)
+    except ValueError:
+        return None
+    if _is_ip(h) or "." not in h:
+        return None
+    site: str | None = _psl().privatesuffix(h)
+    return site
+
+
 @dataclass(frozen=True)
 class ScopePolicy:
     """Hosts (and non-default ports) Albert may contact during one run."""
 
     hosts: frozenset[str]
     extra_ports: frozenset[tuple[str, int]] = frozenset()
+    mode: ScanMode = "scan"  # strictest by default; only "quick" may widen (same-site redirects)
 
     @classmethod
     def for_target(cls, target: Target) -> ScopePolicy:
@@ -61,7 +83,36 @@ class ScopePolicy:
         host = normalize_host(target.host)
         port = urlsplit(target.url).port
         extra = {(host, port)} if port is not None and port not in DEFAULT_PORTS else set()
-        return cls(frozenset({host}), frozenset(extra))
+        return cls(frozenset({host}), frozenset(extra), target.mode)
+
+    def with_same_site_redirect(self, from_url: str, to_url: str) -> ScopePolicy:
+        """Quick mode only: a new policy that also allows ``to_url``'s host.
+
+        Narrow by design. Refused unless: this is a quick-mode policy; ``from_url`` is already
+        in scope; ``to_url`` is http(s) on a default port without credentials; and both hosts
+        share a registrable domain (apex <-> www, sub.example.co.uk -> example.co.uk). Scan and
+        active policies never widen; they need an explicit scope.toml entry per host.
+        """
+        if self.mode != "quick":
+            raise OutOfScopeError(f"same-site redirect allowance is quick-mode only ({self.mode})")
+        src = urlsplit(from_url)
+        src_host = self.check_host(src.hostname or "", src.port)
+        dst = urlsplit(to_url)
+        if dst.scheme not in ALLOWED_SCHEMES or dst.username or dst.password:
+            raise OutOfScopeError(f"redirect target {to_url!r} refused")
+        try:
+            port = dst.port
+            dst_host = normalize_host(dst.hostname or "")
+        except ValueError:
+            raise OutOfScopeError(f"invalid redirect target {to_url!r}") from None
+        if port is not None and port not in DEFAULT_PORTS:
+            raise OutOfScopeError(f"redirect to non-default port {port} refused")
+        site = registrable_domain(src_host)
+        if site is None or registrable_domain(dst_host) != site:
+            raise OutOfScopeError(
+                f"{dst_host!r} is not on the same registrable domain as {src_host!r}"
+            )
+        return replace(self, hosts=self.hosts | {dst_host})
 
     def check_host(self, host: str, port: int | None = None) -> str:
         """Return the normalized host if allowed; raise OutOfScopeError otherwise."""

@@ -5,6 +5,7 @@ the scope checkpoint, method gate, request budget, and per-host limits before an
 from __future__ import annotations
 
 import asyncio
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 from types import TracebackType
@@ -27,9 +28,24 @@ class FetchError(Exception):
     """A request failed (network, TLS, timeout, protocol). The message is safe to report."""
 
 
+MAX_TEXT_CHARS = 2_000_000
+_TEXTUAL = re.compile(r"^(?:text/|application/(?:[\w.+-]*\+)?(?:json|xml|javascript)\b)")
+
+
+@dataclass(frozen=True)
+class FetchChain:
+    """Every hop of one GET. ``not_followed`` is a redirect target the policy refused."""
+
+    hops: list[CollectedResponse]
+    not_followed: str | None = None
+    note: str | None = None  # why the chain stopped early, if it did
+
+
 def _collect(r: httpx.Response) -> CollectedResponse:
+    ctype = r.headers.get("content-type", "").lower()
+    text = r.text[:MAX_TEXT_CHARS] if _TEXTUAL.match(ctype) else ""
     return CollectedResponse(
-        str(r.url), r.status_code, tuple(r.headers.multi_items()), r.http_version
+        str(r.url), r.status_code, tuple(r.headers.multi_items()), r.http_version, text
     )
 
 
@@ -141,12 +157,11 @@ class HttpClient:
         """HEAD ``url``."""
         return await self._client.head(url)
 
-    async def fetch_chain(self, url: str) -> tuple[list[CollectedResponse], str | None]:
+    async def fetch_chain(self, url: str) -> FetchChain:
         """GET ``url``, following redirects here so every hop is kept for checks.
 
-        Returns (hops, note). ``note`` explains an early stop: an off-scope redirect (recorded,
-        not followed), too many redirects, or an error after the first hop. Raises FetchError
-        if the first request fails.
+        An off-scope redirect is recorded (``not_followed``), never followed. Raises FetchError
+        only if the first request fails; later failures end the chain with a ``note``.
         """
         hops: list[CollectedResponse] = []
         current = url
@@ -157,17 +172,17 @@ class HttpClient:
                 msg = f"{current}: {type(e).__name__}: {e}"
                 if not hops:
                     raise FetchError(msg) from None
-                return hops, f"error following redirect: {msg}"
+                return FetchChain(hops, note=f"error following redirect: {msg}")
             hops.append(_collect(r))
             if not r.is_redirect or r.next_request is None:
-                return hops, None
+                return FetchChain(hops)
             nxt = str(r.next_request.url)
             try:
                 self._policy.check_request("GET", nxt)
             except OutOfScopeError as e:
-                return hops, f"redirect to {nxt} not followed ({e})"
+                return FetchChain(hops, nxt, f"redirect to {nxt} not followed ({e})")
             current = nxt
-        return hops, f"stopped after {self.limits.max_redirects} redirects"
+        return FetchChain(hops, note=f"stopped after {self.limits.max_redirects} redirects")
 
     async def aclose(self) -> None:
         """Close connections."""

@@ -8,13 +8,9 @@ import sys
 from pathlib import Path
 
 from albert import __version__
-from albert.core.engine import run_checks
-from albert.core.http_client import BudgetExceededError, ClientLimits, FetchError, HttpClient
-from albert.core.models import CollectedResponse, ScanResult, Target
+from albert.core.models import Target
 from albert.core.report import write_report
-from albert.core.scope import OutOfScopeError, ScopePolicy
-
-QUICK_LIMITS = ClientLimits(max_requests=10)
+from albert.quick import run_quick
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -33,23 +29,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _ask_url() -> str:
     return input("Which URL should I scan? ").strip()
-
-
-async def run_quick(target: Target) -> ScanResult:
-    """Fetch the one page (following in-scope redirects) and run the header checks."""
-    result = ScanResult(target)
-    hops: list[CollectedResponse] = []
-    async with HttpClient(ScopePolicy.for_target(target), QUICK_LIMITS) as client:
-        try:
-            hops, note = await client.fetch_chain(target.url)
-            if note:
-                result.skipped.append(note)
-        except (FetchError, OutOfScopeError, BudgetExceededError) as e:
-            result.errors.append(str(e))
-    result.pages = [h.url for h in hops]
-    run_checks(result, hops, ["headers"])
-    result.finish()
-    return result
 
 
 def _cmd_quick(args: argparse.Namespace) -> int:

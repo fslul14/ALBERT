@@ -74,6 +74,7 @@ def build_report_data(result: ScanResult) -> dict[str, Any]:
             "tech": dict(result.tech),
             "errors": list(result.errors),
         },
+        "notes": list(result.notes),
     }
     return _sweep(data)  # type: ignore[no-any-return]
 
@@ -125,7 +126,10 @@ def _md_header(d: dict[str, Any]) -> list[str]:
         ("Pages scanned", str(d["pages_scanned"])),
         ("Checks run", ", ".join(d["checks_run"]) or "none"),
     ]
-    return ["## Header", "", "| | |", "|---|---|", *(f"| {k} | {v} |" for k, v in rows), ""]
+    lines = ["## Header", "", "| | |", "|---|---|", *(f"| {k} | {v} |" for k, v in rows), ""]
+    if d["notes"]:
+        lines += ["**Notes:**", "", *(f"- {_code(n)}" for n in d["notes"]), ""]
+    return lines
 
 
 def _md_summary(d: dict[str, Any]) -> list[str]:

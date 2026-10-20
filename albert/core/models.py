@@ -142,6 +142,7 @@ class CollectedResponse:
     status: int
     headers: tuple[tuple[str, str], ...] = ()  # received order, duplicates kept
     http_version: str = "HTTP/1.1"
+    text: str = ""  # decoded body for textual types (capped by the collector)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "headers", tuple((str(k), str(v)) for k, v in self.headers))
@@ -223,6 +224,7 @@ class ScanResult:
     blocked: list[str] = field(default_factory=list)  # WAF / CAPTCHA / rate-limited
     tech: dict[str, str] = field(default_factory=dict)  # name -> version ("" if unknown)
     errors: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)  # e.g. redirects followed, coverage gaps
 
     def finish(self) -> None:
         """Stamp the end time."""
@@ -255,4 +257,5 @@ class ScanResult:
             "blocked": list(self.blocked),
             "tech": dict(self.tech),
             "errors": list(self.errors),
+            "notes": list(self.notes),
         }
