@@ -285,29 +285,30 @@ _SPECS: dict[str, _Spec] = {
         "Remove X-Powered-By and similar headers.",
         ("CWE-497",),
     ),
-    "HDR-CORS-WILDCARD": _Spec(
-        "CORS allows any origin (Access-Control-Allow-Origin: *)",
+    "HDR-NO-CONTENT-TYPE": _Spec(
+        "Response has no Content-Type",
+        S.LOW,
+        C.MEDIUM,
+        "Browsers sniff the type, which can turn uploaded or reflected content into HTML/script.",
+        "Send an explicit Content-Type (with charset for text) on every response with a body.",
+        ("CWE-430", A05),
+    ),
+    "HDR-CONFLICTING-HEADERS": _Spec(
+        "Security header sent more than once with different values",
+        S.LOW,
+        C.HIGH,
+        "Browsers keep the first value or ignore the header entirely, so the intended policy may "
+        "not apply (often two layers, e.g. app and proxy, both setting it).",
+        "Set each security header in exactly one place.",
+        (A05,),
+    ),
+    "HDR-TIMING-ALLOW-ORIGIN": _Spec(
+        "Timing-Allow-Origin: * exposes detailed timing to any site",
         S.INFO,
         C.HIGH,
-        "Fine for public data; a problem if the response holds user-specific content.",
-        "Confirm the resource is public; otherwise allow-list specific origins.",
-        ("CWE-942",),
-    ),
-    "HDR-CORS-WILDCARD-CREDENTIALS": _Spec(
-        "CORS wildcard combined with Allow-Credentials",
-        S.LOW,
-        C.HIGH,
-        "Browsers reject this pair; it suggests a CORS config that may reflect origins elsewhere.",
-        "Use an explicit origin allow-list when credentials are needed.",
-        ("CWE-942", A05),
-    ),
-    "HDR-CORS-NULL": _Spec(
-        "CORS allows the 'null' origin",
-        S.LOW,
-        C.HIGH,
-        "Sandboxed iframes and file:// pages have origin null and can read the response.",
-        "Never allow-list 'null'.",
-        ("CWE-942", A05),
+        "Cross-origin pages can read precise resource timing, aiding cross-site leak attacks.",
+        "Limit Timing-Allow-Origin to origins that need it.",
+        ("CWE-208",),
     ),
     "HDR-DEBUG-HEADER": _Spec(
         "Debug/profiler header exposed",
@@ -788,24 +789,6 @@ def check_deprecated(resp: CollectedResponse) -> list[Finding]:
     return out
 
 
-def check_cors(resp: CollectedResponse) -> list[Finding]:
-    """CORS headers as served (read only; Albert never sends a crafted Origin)."""
-    acao = resp.header("access-control-allow-origin")
-    if acao is None:
-        return []
-    creds = (resp.header("access-control-allow-credentials") or "").strip().lower() == "true"
-    ev = [_ev("Access-Control-Allow-Origin", acao)]
-    if creds:
-        ev.append(_ev("Access-Control-Allow-Credentials", "true"))
-    origin = acao.strip().lower()
-    if origin == "*":
-        fid = "HDR-CORS-WILDCARD-CREDENTIALS" if creds else "HDR-CORS-WILDCARD"
-        return [_hit(resp, fid, *ev)]
-    if origin == "null":
-        return [_hit(resp, "HDR-CORS-NULL", *ev, severity=S.MEDIUM if creds else None)]
-    return []
-
-
 def _is_private_host(url: str) -> bool:
     host = urlsplit(url).hostname or ""
     if host == "localhost":
@@ -846,6 +829,39 @@ def check_leaky_headers(resp: CollectedResponse) -> list[Finding]:
                 severity=S.LOW if detailed else None,
             )
         )
+    return out
+
+
+_SINGLE_VALUE_HEADERS = (
+    "strict-transport-security",
+    "x-frame-options",
+    "x-content-type-options",
+    "content-type",
+    "cross-origin-opener-policy",
+    "cross-origin-embedder-policy",
+    "cross-origin-resource-policy",
+    "permissions-policy",
+    "access-control-allow-credentials",
+)
+
+
+def check_misc(resp: CollectedResponse) -> list[Finding]:
+    """Missing Content-Type, conflicting duplicate security headers, Timing-Allow-Origin: *."""
+    out = []
+    has_body = (resp.header("content-length") or "").strip() != "0"
+    if (
+        200 <= resp.status < 300
+        and resp.status != 204
+        and has_body
+        and not resp.header("content-type")
+    ):
+        out.append(_hit(resp, "HDR-NO-CONTENT-TYPE", _ev("Content-Type", None)))
+    for name in _SINGLE_VALUE_HEADERS:
+        values = resp.header_all(name)
+        if len({re.sub(r"\s+", "", v).lower() for v in values}) > 1:
+            out.append(_hit(resp, "HDR-CONFLICTING-HEADERS", *(_ev(name, v) for v in values)))
+    if any(v.strip() == "*" for v in resp.header_all("timing-allow-origin")):
+        out.append(_hit(resp, "HDR-TIMING-ALLOW-ORIGIN", _ev("Timing-Allow-Origin", "*")))
     return out
 
 
@@ -915,8 +931,8 @@ CHECKS: tuple[HeaderCheck, ...] = (
     check_cache_control,
     check_banners,
     check_deprecated,
-    check_cors,
     check_leaky_headers,
+    check_misc,
     check_etag_inode,
     check_cdn_waf,
     check_protocols,

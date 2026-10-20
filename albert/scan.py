@@ -46,7 +46,7 @@ async def run_scan(
     result.blocked = crawl.blocked
     result.errors = crawl.errors
     result.notes = crawl.notes
-    run_checks(result, crawl.responses, ["headers", "cookies"])
+    run_checks(result, crawl.responses, ["headers", "cookies", "cors"])
     run_checks(result, crawl.responses + crawl.aux, ["disclosure"])  # + robots/sitemaps
     if render is not None:
         await _render_step(result, policy, crawl.responses, rate, render)

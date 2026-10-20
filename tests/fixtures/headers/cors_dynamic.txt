@@ -1,0 +1,6 @@
+# Specific credentialed origin chosen per request (Vary: Origin): possible reflection.
+HTTP/1.1 200 OK
+Content-Type: application/json
+Access-Control-Allow-Origin: https://app.shop.test
+Access-Control-Allow-Credentials: true
+Vary: Accept-Encoding, Origin

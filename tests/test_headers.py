@@ -66,7 +66,6 @@ def test_weak() -> None:
         "HDR-HSTS-NOT-PRELOAD-READY",
         "HDR-REFERRER-UNSAFE",
         "HDR-PERMISSIONS-WILDCARD",
-        "HDR-CORS-WILDCARD-CREDENTIALS",
         "HDR-DEBUG-HEADER",
         "HDR-BACKEND-DISCLOSED",
         "HDR-INTERNAL-IP",
@@ -139,12 +138,6 @@ def test_framing() -> None:
     assert ids(h.check_framing(resp(X_Frame_Options="DENY"))) == {"HDR-FRAME-ANCESTORS-MISSING"}
     fa = resp(Content_Security_Policy="frame-ancestors 'self'", X_Frame_Options="ALLOW-FROM x")
     assert h.check_framing(fa) == []  # frame-ancestors overrides XFO
-
-
-def test_cors_null_with_credentials_is_medium() -> None:
-    r = resp(Access_Control_Allow_Origin="null", Access_Control_Allow_Credentials="true")
-    (f,) = h.check_cors(r)
-    assert f.id == "HDR-CORS-NULL" and f.severity is Severity.MEDIUM
 
 
 def test_etag_two_part_not_flagged() -> None:

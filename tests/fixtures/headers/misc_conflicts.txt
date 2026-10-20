@@ -1,0 +1,8 @@
+# App and proxy both set framing/HSTS headers, with different values.
+HTTP/1.1 200 OK
+Content-Type: text/html
+X-Frame-Options: DENY
+X-Frame-Options: SAMEORIGIN
+Strict-Transport-Security: max-age=31536000
+Strict-Transport-Security: max-age=0
+Timing-Allow-Origin: *
