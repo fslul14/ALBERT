@@ -6,6 +6,7 @@ from collections import Counter
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from albert.checks.fingerprint import FingerprintInput, detect_technologies
 from albert.checks.js import run_js_checks
 from albert.checks.rendered import reconcile_meta_csp, run_rendered_checks
 from albert.core.browser import RenderError, RenderLimits, render_pages
@@ -51,6 +52,15 @@ async def run_scan(
     run_checks(result, crawl.responses + crawl.aux, ["disclosure"])  # + robots/sitemaps
     rendered = await _render_step(result, policy, crawl.responses, rate, render) if render else []
     rendered_scripts = [js for page in rendered for js in page.scripts]
+    result.tech = detect_technologies(
+        FingerprintInput(
+            responses=[*crawl.responses, *crawl.aux, *crawl.scripts],
+            scripts=[*crawl.scripts, *rendered_scripts],
+            rendered=rendered,
+            favicons=crawl.favicons,
+        )
+    )
+    result.checks_run.append("fingerprint")
     result.findings += run_js_checks(crawl.responses, [*crawl.scripts, *rendered_scripts])
     result.checks_run.append("js")
     if crawl.scripts or rendered_scripts:

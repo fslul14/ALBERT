@@ -71,7 +71,7 @@ def build_report_data(result: ScanResult) -> dict[str, Any]:
             "pages": list(result.pages),
             "skipped": list(result.skipped),
             "blocked": list(result.blocked),
-            "tech": dict(result.tech),
+            "tech": [t.to_dict() for t in result.tech],
             "errors": list(result.errors),
         },
         "notes": list(result.notes),
@@ -218,16 +218,33 @@ def _md_list(title: str, items: Sequence[str]) -> list[str]:
     return [f"### {title}", "", *body, ""]
 
 
+def _md_tech(tech: list[dict[str, Any]]) -> list[str]:
+    if not tech:
+        return ["### Technology detected", "", "- *(none)*", ""]
+    lines = [
+        "### Technology detected",
+        "",
+        "| Technology | Version | Category | Confidence | Evidence |",
+        "|---|---|---|---|---|",
+    ]
+    for t in tech:
+        evidence = _clip("; ".join(t["evidence"]))
+        lines.append(
+            f"| {_text(t['name'])} | {_cell(t['version']) if t['version'] else '-'} | "
+            f"{_text(t['category'])} | {t['confidence']} | {_cell(evidence)} |"
+        )
+    return [*lines, ""]
+
+
 def _md_appendix(d: dict[str, Any]) -> list[str]:
     a = d["appendix"]
-    tech = [f"{name} {ver}".strip() for name, ver in a["tech"].items()]
     return [
         "## Appendix",
         "",
         *_md_list("Pages scanned", a["pages"]),
         *_md_list("Skipped / not followed", a["skipped"]),
         *_md_list("Blocked", a["blocked"]),
-        *_md_list("Technology detected", tech),
+        *_md_tech(a["tech"]),
         *_md_list("Errors", a["errors"]),
     ]
 

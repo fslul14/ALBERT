@@ -121,6 +121,17 @@ def script_links(base_url: str, html: str) -> list[str]:
     ]
 
 
+def icon_links(base_url: str, html: str) -> list[str]:
+    """Absolute URLs of <link rel="icon"> / "shortcut icon" / "apple-touch-icon" targets."""
+    tree = LexborHTMLParser(html)
+    out = []
+    for node in tree.css("link[rel][href]"):
+        rel = (node.attributes.get("rel") or "").lower().split()
+        if "icon" in rel or "apple-touch-icon" in rel:
+            out.append(urljoin(base_url, (node.attributes.get("href") or "").strip()))
+    return out
+
+
 def sitemap_locs(xml: str) -> list[str]:
     """<loc> values from a sitemap or sitemap index (regex, not an XML parser: no entity risk)."""
     return [unescape(m) for m in _LOC.findall(xml)]
@@ -174,6 +185,7 @@ class CrawlLimits:
     backoff: float = 5.0  # seconds to pause after a block (Retry-After honored, capped)
     max_backoff: float = 30.0
     max_scripts: int = 50  # same-host <script src> files fetched for JS analysis (0: none)
+    max_favicons: int = 2  # same-host icons pages reference via <link rel=icon> (0: none)
 
 
 @dataclass
@@ -189,6 +201,7 @@ class CrawlResult:
     resumed: int = 0  # responses loaded from state instead of re-fetched
     aux: list[CollectedResponse] = field(default_factory=list)  # robots.txt, sitemaps
     scripts: list[CollectedResponse] = field(default_factory=list)  # same-host JS files
+    favicons: list[tuple[str, bytes]] = field(default_factory=list)  # referenced icons only
 
 
 class Crawler:
@@ -232,6 +245,7 @@ class Crawler:
         self._loading = False  # replaying resume state: don't re-append it
         self._unsaved_links = 0
         self._script_urls: dict[str, None] = {}  # ordered set
+        self._icon_urls: dict[str, None] = {}
 
     # -- bookkeeping --
 
@@ -367,6 +381,10 @@ class Crawler:
                 self.enqueue(link, depth + 1)
             for src in script_links(resp.url, resp.text):
                 self._note_script(src)
+            for icon in icon_links(resp.url, resp.text):
+                norm = normalize_url(icon)
+                if norm and urlsplit(norm).hostname == self.host:
+                    self._icon_urls.setdefault(norm, None)
 
     def _note_script(self, url: str) -> None:
         """Remember a same-host <script src> (fetched after the crawl, for JS analysis)."""
@@ -376,6 +394,23 @@ class Crawler:
         if urlsplit(norm).hostname != self.host:
             return  # third-party scripts are never fetched
         self._script_urls[norm] = None
+
+    async def _fetch_favicons(self) -> None:
+        """Icons a crawled page referenced (never guessed, e.g. no /favicon.ico probing)."""
+        if self._client is None:
+            return
+        for url in list(self._icon_urls)[: self.limits.max_favicons]:
+            if self._stop_reason or not self._robots_allows(url):
+                continue
+            try:
+                raw = await self._client.fetch_one(url)
+            except (FetchError, OutOfScopeError):
+                continue
+            except BudgetExceededError as e:
+                self._stop(str(e))
+                return
+            if raw.status == 200 and raw.body:
+                self.result.favicons.append((url, raw.body))
 
     async def _fetch_scripts(self) -> None:
         for url in list(self._script_urls)[: self.limits.max_scripts]:
@@ -545,6 +580,8 @@ class Crawler:
                 await asyncio.gather(*workers, return_exceptions=True)
             if self._fatal is None and self.limits.max_scripts > 0:
                 await self._fetch_scripts()
+            if self._fatal is None and self.limits.max_favicons > 0:
+                await self._fetch_favicons()
         if self._unsaved_links:
             self.result.notes.append(
                 f"{self._unsaved_links} link(s) with secret-like tokens not saved for resume"

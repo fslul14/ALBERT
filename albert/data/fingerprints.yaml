@@ -1,0 +1,247 @@
+# Technology signatures (Wappalyzer-style). Data, not code: add a technology by adding an entry.
+# Validated by `albert rules lint`. Detection only; CVE matching (step 16) reads cpe/npm.
+#
+# Per technology:
+#   name, category                         required
+#   cpe: "vendor:product"  npm: "package"   optional identifiers for vulnerability lookup
+#   headers:     {Header-Name: regex}       on every collected response
+#   cookies:     [regex]                    on Set-Cookie names
+#   meta:        {meta-name: regex}         on <meta name=... content=...> (pages + rendered DOM)
+#   html:        [regex]                    on page HTML (pages + rendered DOM)
+#   script_src:  [regex]                    on <script src> URLs and rendered script requests
+#   script_body: [regex]                    on fetched script contents
+#   url:         [regex]                    on crawled page URLs
+#   favicon_md5: [hex]                      md5 of a favicon an in-scope page references
+#   implies:     [names]                    added at Low confidence if not detected directly
+#
+# A named group (?P<version>...) captures the version. Confidence: a version from headers,
+# meta, html or script_body is High; a version from script_src/url (a path) is Low;
+# presence-only: headers/meta High, others Medium; implied Low.
+# Regexes are single-quoted so backslashes stay literal.
+
+technologies:
+# --- web servers -------------------------------------------------------------------------
+- name: nginx
+  category: web-server
+  cpe: "f5:nginx"
+  headers: {Server: '^nginx(?:/(?P<version>\d+(?:\.\d+)+))?'}
+- name: OpenResty
+  category: web-server
+  cpe: "openresty:openresty"
+  headers: {Server: '^openresty(?:/(?P<version>\d+(?:\.\d+)+))?'}
+- name: Apache HTTP Server
+  category: web-server
+  cpe: "apache:http_server"
+  headers: {Server: '^Apache(?:/(?P<version>\d+(?:\.\d+)+))?(?:\s|$)'}
+- name: Microsoft IIS
+  category: web-server
+  cpe: "microsoft:internet_information_services"
+  headers: {Server: '^Microsoft-IIS(?:/(?P<version>\d+(?:\.\d+)+))?'}
+- name: LiteSpeed
+  category: web-server
+  headers: {Server: '^LiteSpeed'}
+- name: Caddy
+  category: web-server
+  headers: {Server: '^Caddy'}
+- name: Envoy
+  category: web-server
+  headers: {Server: '^envoy'}
+- name: Gunicorn
+  category: web-server
+  headers: {Server: '^gunicorn(?:/(?P<version>\d+(?:\.\d+)+))?'}
+  implies: [Python]
+- name: Werkzeug
+  category: web-server
+  headers: {Server: '^Werkzeug(?:/(?P<version>\d+(?:\.\d+)+))?'}
+  implies: [Python]
+- name: Kestrel
+  category: web-server
+  headers: {Server: '^Kestrel'}
+  implies: [ASP.NET]
+- name: Apache Tomcat
+  category: web-server
+  cpe: "apache:tomcat"
+  headers: {Server: '^Apache-Coyote'}
+  html: ['<h3>Apache Tomcat/(?P<version>\d+(?:\.\d+)+)</h3>']
+  implies: [Java]
+
+# --- languages / runtimes ----------------------------------------------------------------
+- name: PHP
+  category: language
+  cpe: "php:php"
+  headers: {X-Powered-By: '^PHP(?:/(?P<version>\d+(?:\.\d+)+))?'}
+  cookies: ['^PHPSESSID$']
+- name: Python
+  category: language
+  cpe: "python:python"
+  headers: {Server: 'Python/(?P<version>\d+(?:\.\d+)+)'}
+- name: ASP.NET
+  category: framework
+  cpe: "microsoft:asp.net"
+  headers:
+    X-AspNet-Version: '^(?P<version>\d+(?:\.\d+)+)'
+    X-Powered-By: '^ASP\.NET'
+  cookies: ['^ASP\.NET_SessionId$', '^\.ASPXAUTH$']
+- name: Java
+  category: language
+  cookies: ['^JSESSIONID$']
+- name: Node.js
+  category: runtime
+- name: Express
+  category: framework
+  npm: express
+  headers: {X-Powered-By: '^Express$'}
+  implies: [Node.js]
+
+# --- frameworks ---------------------------------------------------------------------------
+- name: Next.js
+  category: framework
+  npm: next
+  headers: {X-Powered-By: '^Next\.js(?: (?P<version>\d+(?:\.\d+)+))?'}
+  html: ['<script id="__NEXT_DATA__"']
+  script_src: ['/_next/static/']
+  implies: [React, Node.js]
+- name: Nuxt
+  category: framework
+  npm: nuxt
+  html: ['window\.__NUXT__']
+  script_src: ['/_nuxt/']
+  implies: [Vue.js]
+- name: Laravel
+  category: framework
+  cookies: ['^laravel_session$']
+  implies: [PHP]
+- name: Django
+  category: framework
+  html: ['name="csrfmiddlewaretoken"']
+  implies: [Python]
+- name: Ruby on Rails
+  category: framework
+  meta: {csrf-param: '^authenticity_token$'}
+  implies: [Ruby]
+- name: Ruby
+  category: language
+
+# --- CMS / site builders -----------------------------------------------------------------
+- name: WordPress
+  category: cms
+  cpe: "wordpress:wordpress"
+  meta: {generator: '^WordPress(?: (?P<version>\d+(?:\.\d+)+))?'}
+  html: ['/wp-(?:content|includes)/']
+  # ?ver= on WordPress's OWN core scripts is the WP version (bundled libs carry theirs).
+  script_src: ['/wp-includes/js/wp-(?:emoji-release|embed)(?:\.min)?\.js\?ver=(?P<version>\d+(?:\.\d+)+)']
+  implies: [PHP, MySQL]
+- name: Drupal
+  category: cms
+  cpe: "drupal:drupal"
+  headers:
+    X-Generator: '^Drupal(?: (?P<version>\d+(?:\.\d+)*))?'
+    X-Drupal-Cache: '.'
+  meta: {generator: '^Drupal(?: (?P<version>\d+(?:\.\d+)*))?'}
+  implies: [PHP]
+- name: Joomla
+  category: cms
+  cpe: "joomla:joomla\\!"
+  meta: {generator: '^Joomla!(?: (?P<version>\d+(?:\.\d+)+))?'}
+  implies: [PHP]
+- name: Ghost
+  category: cms
+  npm: ghost
+  meta: {generator: '^Ghost(?: (?P<version>\d+(?:\.\d+)+))?'}
+  implies: [Node.js]
+- name: Bitrix
+  category: cms
+  headers: {X-Powered-CMS: '^Bitrix'}
+  implies: [PHP]
+- name: Shopify
+  category: ecommerce
+  headers: {X-ShopId: '.'}
+  html: ['cdn\.shopify\.com']
+- name: Wix
+  category: site-builder
+  headers: {X-Wix-Request-Id: '.'}
+- name: Squarespace
+  category: site-builder
+  html: ['static1\.squarespace\.com']
+- name: Hugo
+  category: static-site-generator
+  meta: {generator: '^Hugo(?: (?P<version>\d+(?:\.\d+)+))?'}
+- name: Jekyll
+  category: static-site-generator
+  meta: {generator: '^Jekyll(?: v(?P<version>\d+(?:\.\d+)+))?'}
+- name: Gatsby
+  category: static-site-generator
+  meta: {generator: '^Gatsby(?: (?P<version>\d+(?:\.\d+)+))?'}
+  implies: [React]
+
+# --- databases (implied only) -------------------------------------------------------------
+- name: MySQL
+  category: database
+
+# --- JavaScript libraries -----------------------------------------------------------------
+- name: jQuery
+  category: js-library
+  cpe: "jquery:jquery"
+  npm: jquery
+  script_src:
+  - 'jquery[.-](?P<version>\d+\.\d+\.\d+)(?:\.slim)?(?:\.min)?\.js'
+  - '/jquery/(?P<version>\d+\.\d+\.\d+)/jquery'
+  - '/jquery@(?P<version>\d+\.\d+\.\d+)/'
+  - '/wp-includes/js/jquery/jquery(?:\.min)?\.js\?ver=(?P<version>\d+\.\d+\.\d+)'
+  script_body: ['/\*!? jQuery v(?P<version>\d+\.\d+\.\d+)']
+- name: jQuery UI
+  category: js-library
+  npm: jquery-ui
+  script_body: ['jQuery UI - v(?P<version>\d+\.\d+\.\d+)']
+  script_src: ['jquery-ui[.-](?P<version>\d+\.\d+\.\d+)(?:\.min)?\.js']
+  implies: [jQuery]
+- name: Bootstrap
+  category: ui-framework
+  npm: bootstrap
+  script_body: ['Bootstrap v(?P<version>\d+\.\d+\.\d+)']
+  script_src: ['/bootstrap(?:@|/)(?P<version>\d+\.\d+\.\d+)/']
+  html: ['/bootstrap(?:@|/)(?P<version>\d+\.\d+\.\d+)/(?:dist/)?css/']
+- name: AngularJS
+  category: js-framework
+  npm: angular
+  script_body: ['AngularJS v(?P<version>1\.\d+\.\d+)']
+  script_src: ['/angular\.js/(?P<version>1\.\d+\.\d+)/', 'angular(?:\.min)?\.js']
+- name: Angular
+  category: js-framework
+  npm: "@angular/core"
+  html: ['ng-version="(?P<version>\d+\.\d+\.\d+)"']
+- name: React
+  category: js-framework
+  npm: react
+  script_src: ['/react(?:-dom)?@(?P<version>\d+\.\d+\.\d+)/', 'react(?:-dom)?\.production\.min\.js']
+  script_body: ['react(?:-dom)?\.production\.min\.js', 'react(?:-dom)?\.development\.js']
+- name: Vue.js
+  category: js-framework
+  npm: vue
+  script_body: ['Vue\.js v(?P<version>\d+\.\d+\.\d+)']
+  script_src: ['/vue@(?P<version>\d+\.\d+\.\d+)/']
+- name: Lodash
+  category: js-library
+  npm: lodash
+  script_body: ['@license\s+Lodash\b', 'lodash\.com/license']
+  script_src: ['/lodash(?:@|/|\.js/)(?P<version>\d+\.\d+\.\d+)/', 'lodash(?:\.min)?\.js']
+- name: Moment.js
+  category: js-library
+  npm: moment
+  script_body: ['//! version : (?P<version>\d+\.\d+\.\d+)\s*\n//! authors : Tim Wood']
+  script_src: ['/moment(?:@|/|\.js/)(?P<version>\d+\.\d+\.\d+)/', 'moment(?:\.min)?\.js']
+- name: Font Awesome
+  category: font
+  html: ['/font-awesome/(?P<version>\d+\.\d+\.\d+)/', 'kit\.fontawesome\.com']
+  script_src: ['kit\.fontawesome\.com']
+
+# --- analytics / tag managers / CDN -------------------------------------------------------
+- name: Google Analytics
+  category: analytics
+  script_src: ['google-analytics\.com/(?:analytics|ga)\.js', 'googletagmanager\.com/gtag/js']
+- name: Google Tag Manager
+  category: tag-manager
+  script_src: ['googletagmanager\.com/gtm\.js']
+- name: Cloudflare
+  category: cdn
+  headers: {CF-Ray: '.', Server: '^cloudflare$'}

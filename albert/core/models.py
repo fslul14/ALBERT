@@ -263,6 +263,33 @@ class RenderedPage:
 
 
 @dataclass(frozen=True)
+class TechDetection:
+    """A technology seen on the target (recorded, not judged; CVE matching is separate)."""
+
+    name: str
+    category: str
+    version: str | None
+    confidence: Confidence
+    evidence: tuple[str, ...]  # what was seen, e.g. "header Server: nginx/1.25.3"
+    urls: tuple[str, ...] = ()
+    cpe: str | None = None  # "vendor:product", for vulnerability lookup
+    npm: str | None = None  # npm package name, for vulnerability lookup
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-ready form."""
+        return {
+            "name": self.name,
+            "category": self.category,
+            "version": self.version,
+            "confidence": self.confidence.label,
+            "evidence": list(self.evidence),
+            "urls": list(self.urls),
+            "cpe": self.cpe,
+            "npm": self.npm,
+        }
+
+
+@dataclass(frozen=True)
 class Target:
     """What is being scanned, and under whose authorization."""
 
@@ -308,7 +335,7 @@ class ScanResult:
     pages: list[str] = field(default_factory=list)  # crawled
     skipped: list[str] = field(default_factory=list)  # out of scope / robots / caps
     blocked: list[str] = field(default_factory=list)  # WAF / CAPTCHA / rate-limited
-    tech: dict[str, str] = field(default_factory=dict)  # name -> version ("" if unknown)
+    tech: list[TechDetection] = field(default_factory=list)  # appendix, not findings
     errors: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)  # e.g. redirects followed, coverage gaps
 
@@ -341,7 +368,7 @@ class ScanResult:
             "pages": list(self.pages),
             "skipped": list(self.skipped),
             "blocked": list(self.blocked),
-            "tech": dict(self.tech),
+            "tech": [t.to_dict() for t in self.tech],
             "errors": list(self.errors),
             "notes": list(self.notes),
         }

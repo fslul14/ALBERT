@@ -1,0 +1,6 @@
+# Typical WordPress-on-nginx/PHP response.
+HTTP/1.1 200 OK
+Server: nginx/1.25.3
+X-Powered-By: PHP/8.2.12
+Set-Cookie: PHPSESSID=abc123; path=/
+Content-Type: text/html; charset=UTF-8
