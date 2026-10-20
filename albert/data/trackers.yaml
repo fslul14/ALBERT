@@ -1,0 +1,187 @@
+# Tracker / consent-manager / fingerprinting signatures for checks/privacy.py.
+# Data, not code: add a service by adding an entry. Validated by `albert rules lint`.
+#
+#   name, category                       required
+#   category: analytics | advertising | social | session-replay | fingerprinting |
+#             tag-manager | monitoring | consent
+#   domains:     [host suffix]           matched against attempted/referenced request hosts
+#   cookies:     [regex]                 first-party Set-Cookie names this service uses
+#   dom:         [CSS selector]          banner/widget markup (consent managers)
+#   script_body: [regex]                 markers inside collected JavaScript
+#
+# "Tracker" categories (counted as tracking): analytics, advertising, social, session-replay,
+# fingerprinting, tag-manager. monitoring and consent are listed but not counted as tracking.
+
+services:
+# --- analytics ------------------------------------------------------------------------------
+- name: Google Analytics
+  category: analytics
+  domains: [google-analytics.com, analytics.google.com]
+  cookies: ['^_ga$', '^_ga_', '^_gid$', '^_gat']
+- name: Adobe Analytics
+  category: analytics
+  domains: [omtrdc.net, 2o7.net, demdex.net]
+  cookies: ['^AMCV_', '^s_cc$', '^s_vi$']
+- name: Matomo
+  category: analytics
+  domains: [matomo.cloud]
+  cookies: ['^_pk_id', '^_pk_ses']
+- name: Yandex Metrica
+  category: analytics
+  domains: [mc.yandex.ru, mc.yandex.com]
+  cookies: ['^_ym_uid$', '^_ym_d$']
+- name: Mixpanel
+  category: analytics
+  domains: [mixpanel.com, mxpnl.com]
+  cookies: ['^mp_']
+- name: Amplitude
+  category: analytics
+  domains: [amplitude.com]
+- name: Heap
+  category: analytics
+  domains: [heapanalytics.com]
+  cookies: ['^_hp2_']
+- name: Segment
+  category: analytics
+  domains: [segment.com, segment.io]
+  cookies: ['^ajs_anonymous_id$', '^ajs_user_id$']
+- name: Plausible
+  category: analytics
+  domains: [plausible.io]
+- name: HubSpot
+  category: analytics
+  domains: [hs-scripts.com, hs-analytics.net, track.hubspot.com, hubspot.com]
+  cookies: ['^hubspotutk$', '^__hstc$', '^__hssc$']
+
+# --- tag managers -----------------------------------------------------------------------------
+- name: Google Tag Manager
+  category: tag-manager
+  domains: [googletagmanager.com]
+
+# --- advertising / social pixels ------------------------------------------------------------
+- name: Google Ads / DoubleClick
+  category: advertising
+  domains: [doubleclick.net, googleadservices.com, googlesyndication.com, adservice.google.com]
+  cookies: ['^_gcl_au$', '^_gcl_aw$']
+- name: Meta Pixel
+  category: advertising
+  domains: [connect.facebook.net]
+  cookies: ['^_fbp$', '^_fbc$']
+- name: Microsoft Advertising (UET)
+  category: advertising
+  domains: [bat.bing.com]
+  cookies: ['^_uetsid$', '^_uetvid$']
+- name: LinkedIn Insight Tag
+  category: advertising
+  domains: [snap.licdn.com, px.ads.linkedin.com]
+- name: TikTok Pixel
+  category: advertising
+  domains: [analytics.tiktok.com]
+- name: X (Twitter) Pixel
+  category: advertising
+  domains: [static.ads-twitter.com, analytics.twitter.com]
+- name: Pinterest Tag
+  category: advertising
+  domains: [ct.pinterest.com]
+- name: Snap Pixel
+  category: advertising
+  domains: [sc-static.net, tr.snapchat.com]
+- name: Criteo
+  category: advertising
+  domains: [criteo.com, criteo.net]
+- name: Taboola
+  category: advertising
+  domains: [taboola.com]
+- name: Outbrain
+  category: advertising
+  domains: [outbrain.com]
+
+# --- session replay ---------------------------------------------------------------------------
+- name: Hotjar
+  category: session-replay
+  domains: [hotjar.com, hotjar.io]
+  cookies: ['^_hj']
+- name: Microsoft Clarity
+  category: session-replay
+  domains: [clarity.ms]
+  cookies: ['^_clck$', '^_clsk$']
+- name: FullStory
+  category: session-replay
+  domains: [fullstory.com]
+- name: Mouseflow
+  category: session-replay
+  domains: [mouseflow.com]
+- name: Crazy Egg
+  category: session-replay
+  domains: [crazyegg.com]
+
+# --- fingerprinting ---------------------------------------------------------------------------
+- name: FingerprintJS
+  category: fingerprinting
+  domains: [fpjs.io, fpcdn.io, openfpcdn.io, fpnpmcdn.net]
+  script_body: ['@fingerprintjs/fingerprintjs', '\bFingerprintJS\b']
+- name: ThreatMetrix
+  category: fingerprinting
+  domains: [online-metrix.net]
+- name: Sift
+  category: fingerprinting
+  domains: [cdn.sift.com]
+- name: Iovation
+  category: fingerprinting
+  domains: [iesnare.com]
+- name: ClientJS
+  category: fingerprinting
+  script_body: ['\bClientJS\b.*getFingerprint|getFingerprint.*\bClientJS\b']
+
+# --- monitoring (not counted as tracking) -------------------------------------------------------
+- name: Sentry
+  category: monitoring
+  domains: [sentry-cdn.com, ingest.sentry.io]
+- name: New Relic Browser
+  category: monitoring
+  domains: [js-agent.newrelic.com, nr-data.net]
+
+# --- consent managers ---------------------------------------------------------------------------
+- name: OneTrust
+  category: consent
+  domains: [cdn.cookielaw.org, onetrust.com]
+  dom: ['#onetrust-banner-sdk', '#onetrust-consent-sdk']
+- name: Cookiebot
+  category: consent
+  domains: [consent.cookiebot.com, consentcdn.cookiebot.com]
+  dom: ['#CybotCookiebotDialog']
+- name: Didomi
+  category: consent
+  domains: [privacy-center.org]
+  dom: ['#didomi-host']
+- name: Quantcast Choice
+  category: consent
+  domains: [cmp.quantcast.com]
+  dom: ['.qc-cmp2-container']
+- name: TrustArc
+  category: consent
+  domains: [consent.trustarc.com]
+  dom: ['#truste-consent-track']
+- name: Usercentrics
+  category: consent
+  domains: [usercentrics.eu]
+  dom: ['#usercentrics-root']
+- name: Osano
+  category: consent
+  domains: [cmp.osano.com]
+- name: CookieYes
+  category: consent
+  domains: [cdn-cookieyes.com]
+  dom: ['.cky-consent-container']
+- name: Iubenda
+  category: consent
+  domains: [iubenda.com]
+- name: Complianz
+  category: consent
+  dom: ['#cmplz-cookiebanner-container']
+- name: Borlabs Cookie
+  category: consent
+  dom: ['#BorlabsCookieBox']
+- name: Klaro
+  category: consent
+  dom: ['.klaro .cookie-notice', '.klaro .cookie-modal']

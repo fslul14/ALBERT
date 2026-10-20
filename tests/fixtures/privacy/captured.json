@@ -1,0 +1,18 @@
+{"pages": [
+  {"url": "https://shop.test/", "final_url": "https://shop.test/", "dom": "home.html",
+   "requests": [
+     {"url": "https://shop.test/", "resource_type": "document", "outcome": "fetched", "status": 200},
+     {"url": "https://cdn.shop.test/app.js", "resource_type": "script", "outcome": "fetched", "status": 200},
+     {"url": "https://www.googletagmanager.com/gtm.js?id=GTM-TEST", "resource_type": "script", "outcome": "blocked", "note": "out of scope"},
+     {"url": "https://www.google-analytics.com/g/collect?v=2", "resource_type": "fetch", "method": "POST", "outcome": "blocked", "note": "out of scope"},
+     {"url": "https://connect.facebook.net/en_US/fbevents.js", "resource_type": "script", "outcome": "blocked", "note": "out of scope"},
+     {"url": "https://static.hotjar.com/c/hotjar-123.js", "resource_type": "script", "outcome": "blocked", "note": "out of scope"},
+     {"url": "https://browser.sentry-cdn.com/7.0.0/bundle.min.js", "resource_type": "script", "outcome": "blocked", "note": "out of scope"},
+     {"url": "https://fonts.gstatic.example/font.woff2", "resource_type": "font", "outcome": "blocked", "note": "out of scope"}
+   ]},
+  {"url": "https://shop.test/cart", "final_url": "https://shop.test/cart", "dom": "cart.html",
+   "requests": [
+     {"url": "https://www.googletagmanager.com/gtm.js?id=GTM-TEST", "resource_type": "script", "outcome": "blocked", "note": "out of scope"},
+     {"url": "https://fpnpmcdn.net/v3/abc/loader.js", "resource_type": "script", "outcome": "blocked", "note": "out of scope"}
+   ]}
+]}

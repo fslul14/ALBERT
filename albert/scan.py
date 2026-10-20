@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 from albert.checks.cve import match_cves
 from albert.checks.fingerprint import FingerprintInput, detect_technologies
 from albert.checks.js import run_js_checks
+from albert.checks.privacy import PrivacyInput, run_privacy_checks
 from albert.checks.rendered import reconcile_meta_csp, run_rendered_checks
 from albert.core.browser import RenderError, RenderLimits, render_pages
 from albert.core.crawler import Crawler, CrawlLimits
@@ -66,6 +67,10 @@ async def run_scan(
         )
     )
     result.checks_run.append("fingerprint")
+    result.findings += run_privacy_checks(
+        PrivacyInput(target.url, rendered, crawl.responses, [*crawl.scripts, *rendered_scripts])
+    )
+    result.checks_run.append("privacy")
     if cve_mode != "off":
         lookups = await lookup_all(
             result.tech,
