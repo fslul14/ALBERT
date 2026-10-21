@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -73,22 +74,26 @@ async def run_scan(
     full: bool = False,
     scope_hosts: frozenset[str] | None = None,
     tls_enum: bool = True,
+    exclude: re.Pattern[str] | None = None,
 ) -> ScanResult:
     """Crawl the target (scope-checked, same host), run page checks, optionally render
     pages headlessly (opt-in), then inspect TLS. ``tls_enum=False`` keeps TLS to the certificate
-    handshake (no sslyze protocol/cipher enumeration), e.g. for vendor-hosted targets."""
+    handshake (no sslyze protocol/cipher enumeration), e.g. for vendor-hosted targets.
+    URLs matching ``exclude`` are recorded as skipped and never requested."""
     result = ScanResult(target)
     budget = crawl_limits.max_pages * 3 + 20  # redirect hops + robots + sitemaps
     policy = ScopePolicy.for_target(target)
     crawler = Crawler(
         policy,
         target.url,
-        ClientLimits(rate=rate, max_requests=budget),
+        ClientLimits(rate=rate, max_requests=budget, exclude=exclude),
         crawl_limits,
         state_path=state_path,
         resume=resume,
     )
     crawl = await crawler.run()
+    if exclude is not None:
+        crawl.notes.append(f"--exclude {exclude.pattern!r}: matching URLs were never requested")
     result.pages = crawl.pages
     result.skipped = crawl.skipped
     result.blocked = crawl.blocked
@@ -98,7 +103,9 @@ async def run_scan(
     run_checks(result, crawl.responses + crawl.aux, ["disclosure"])  # + robots/sitemaps
     run_checks(result, crawl.security_txt, ["security_txt"])  # once, on its own fetch chain
     result.pages += [h.url for h in crawl.security_txt]
-    rendered = await _render_step(result, policy, crawl.responses, rate, render) if render else []
+    rendered = (
+        await _render_step(result, policy, crawl.responses, rate, render, exclude) if render else []
+    )
     rendered_scripts = [js for page in rendered for js in page.scripts]
     result.tech = detect_technologies(
         FingerprintInput(
@@ -137,6 +144,7 @@ async def run_scan(
         crawl.responses[:1],
         http_budget=3,
         limits=TLSLimits(enumerate=tls_enum),
+        exclude=exclude,
     )
     if not tls_enum:
         result.notes.append(
@@ -155,12 +163,15 @@ async def _render_step(
     responses: list[CollectedResponse],
     rate: float,
     limits: RenderLimits,
+    exclude: re.Pattern[str] | None = None,
 ) -> list[RenderedPage]:
     """Render crawled HTML pages; all browser traffic goes through HttpClient (scope first)."""
     urls = list(dict.fromkeys(r.url for r in responses if r.is_document))
     budget = limits.max_pages * limits.max_requests_per_page
     try:
-        async with HttpClient(policy, ClientLimits(rate=rate, max_requests=budget)) as client:
+        async with HttpClient(
+            policy, ClientLimits(rate=rate, max_requests=budget, exclude=exclude)
+        ) as client:
             pages = await render_pages(policy, client, urls, limits)
     except RenderError as e:
         result.errors.append(f"render skipped: {e} (install Chromium: {INSTALL_HINT})")

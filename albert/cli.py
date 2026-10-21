@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -28,6 +29,13 @@ def _add_output_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("url", nargs="?", help="target URL (prompted for if omitted)")
     p.add_argument("--out", type=Path, default=Path("reports"), help="report directory")
     p.add_argument("--format", default="md,json", help="comma list: md,json")
+
+
+def _regex(value: str) -> re.Pattern[str]:
+    try:
+        return re.compile(value)
+    except re.error as e:
+        raise argparse.ArgumentTypeError(f"invalid regex {value!r}: {e}") from None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -71,6 +79,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="TLS: certificate handshake + inspection only; skip sslyze protocol/cipher "
         "enumeration (for vendor-hosted targets whose TLS config isn't the owner's)",
+    )
+    scan.add_argument(
+        "--exclude",
+        type=_regex,
+        metavar="REGEX",
+        help="never request URLs matching REGEX (searched in the full URL; e.g. login/account "
+        "paths); they are recorded as skipped",
     )
     scan.add_argument(
         "--cve",
@@ -191,6 +206,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 cache_dir=default_cache_dir(args.out),
                 scope_hosts=frozenset(e.host for e in scope.entries),
                 tls_enum=not args.no_tls_enum,
+                exclude=args.exclude,
             )
         )
         return _finish(result, args, prior)

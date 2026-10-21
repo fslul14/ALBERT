@@ -1,6 +1,7 @@
 """Tests for the HTTP client: UA, redirects, budget, and per-host limits. No live hosts."""
 
 import asyncio
+import re
 
 import httpx
 import pytest
@@ -120,3 +121,19 @@ async def test_rate_limit_is_per_host() -> None:
     a1, a2 = sorted(starts["a.test"])
     assert a2 - a1 >= 0.2  # a.test's second request was spaced
     assert starts["b.test"][0] - t0 < 0.1  # b.test didn't inherit a.test's wait
+
+
+@respx.mock
+async def test_exclude_never_requested_and_redirect_not_followed() -> None:
+    login = respx.get("https://a.test/login").mock(return_value=httpx.Response(200))
+    respx.get("https://a.test/").mock(
+        return_value=httpx.Response(302, headers={"Location": "https://a.test/login"})
+    )
+    limits = ClientLimits(rate=0, exclude=re.compile(r"/login\b"))
+    async with HttpClient(TWO_HOSTS, limits) as client:
+        with pytest.raises(OutOfScopeError, match="--exclude"):
+            await client.get("https://a.test/login")
+        chain = await client.fetch_chain("https://a.test/")
+        assert client.requests_made == 1  # only "/"; the excluded URL never left
+    assert chain.not_followed == "https://a.test/login" and "--exclude" in (chain.note or "")
+    assert not login.called

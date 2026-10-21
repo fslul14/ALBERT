@@ -68,6 +68,7 @@ class ClientLimits:
     max_requests: int = 500  # total for the run, every redirect hop counts
     timeout: float = 15.0  # seconds, per phase (connect/read/write/pool)
     max_redirects: int = 5
+    exclude: re.Pattern[str] | None = None  # URLs never requested (--exclude), e.g. login
 
 
 class _HostGate:
@@ -112,6 +113,7 @@ class _GuardedTransport(httpx.AsyncBaseTransport):
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         host = self._policy.check_request(request.method, str(request.url))
+        check_excluded(self._limits, str(request.url))
         if self.requests_made >= self._limits.max_requests:
             raise BudgetExceededError(f"request budget of {self._limits.max_requests} spent")
         self.requests_made += 1
@@ -128,6 +130,12 @@ class _GuardedTransport(httpx.AsyncBaseTransport):
 
     async def aclose(self) -> None:
         await self._inner.aclose()
+
+
+def check_excluded(limits: ClientLimits, url: str) -> None:
+    """Raise OutOfScopeError if ``url`` matches the run's ``--exclude`` pattern."""
+    if limits.exclude is not None and limits.exclude.search(url):
+        raise OutOfScopeError(f"{url} matches --exclude")
 
 
 class HttpClient:
@@ -198,6 +206,7 @@ class HttpClient:
             nxt = str(r.next_request.url)
             try:
                 self._policy.check_request("GET", nxt)
+                check_excluded(self.limits, nxt)
             except OutOfScopeError as e:
                 return FetchChain(hops, nxt, f"redirect to {nxt} not followed ({e})")
             current = nxt

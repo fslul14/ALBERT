@@ -296,6 +296,9 @@ class Crawler:
         if key in self._seen:
             return
         self._seen.add(key)
+        if (ex := self.client_limits.exclude) is not None and ex.search(norm):
+            self._skip(norm, "matches --exclude")
+            return
         if _ASSET_EXT.search(urlsplit(norm).path):
             return  # static asset, not a page
         if reason := self._trap_reason(norm):

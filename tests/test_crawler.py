@@ -363,3 +363,27 @@ def test_scan_respects_robots_for_security_txt(tmp_path: Path) -> None:
     data = json.loads(next(out.glob("site.test_*.json")).read_text(encoding="utf-8"))
     assert not sec.called
     assert any("security.txt" in s and "robots" in s for s in data["appendix"]["skipped"])
+
+
+@respx.mock
+def test_scan_exclude_skips_matching_urls(tmp_path: Path) -> None:
+    scope = tmp_path / "scope.toml"
+    scope.write_text(
+        '[[target]]\nhost = "site.test"\nauthorized_by = "self"\ndate = "2026-10-20"\n',
+        encoding="utf-8",
+    )
+    routes = site({"/": page("/a", "/login", "/account/x"), "/a": page(), "/login": page()})
+    out = tmp_path / "reports"
+    args = ["scan", f"{BASE}/", "--scope", str(scope), "--out", str(out), "--rate", "0"]
+    assert main([*args, "--exclude", r"/(login|account)(/|$)"]) == 0
+    assert routes["/a"].called and not routes["/login"].called
+    data = json.loads(next(out.glob("site.test_*.json")).read_text(encoding="utf-8"))
+    skipped = " ".join(data["appendix"]["skipped"])
+    assert f"{BASE}/login (matches --exclude)" in skipped and "/account/x" in skipped
+    assert any("--exclude" in n for n in data["notes"])
+
+
+def test_scan_exclude_rejects_bad_regex(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit) as e:
+        main(["scan", f"{BASE}/", "--out", str(tmp_path), "--exclude", "("])
+    assert e.value.code == 2

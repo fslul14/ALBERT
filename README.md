@@ -71,7 +71,9 @@ Scan options: `--render [--render-max N]`, `--max-pages N`, `--max-depth N`,
 `--max-scripts N` (0 disables script fetching), `--rate R` (requests/second per host),
 `--resume`, `--cve {cache,online,off}` (default `cache`: fully local; `online` queries
 OSV.dev/NVD about package versions), `--no-tls-enum` (TLS: certificate handshake only, no
-sslyze protocol/cipher enumeration; for vendor-hosted targets), `--diff prior.json`, `--out DIR`, `--format md,json`.
+sslyze protocol/cipher enumeration; for vendor-hosted targets), `--exclude REGEX` (URLs
+matching it, e.g. login/account paths, are recorded as skipped and never requested),
+`--diff prior.json`, `--out DIR`, `--format md,json`.
 
 `scope.toml` (gitignored) looks like `scope.example.toml`:
 

@@ -41,3 +41,7 @@ What is **not** retained (CWE-312):
 
 Trade-off: resumed pages carry headers only, so body-based checks (added in later steps) don't
 re-run on them; the report notes how many responses were resumed.
+- `--exclude REGEX` (scan): enforced at the HTTP client gate, so matching URLs are never requested
+  by any path (links, sitemap seeds, redirects, scripts, render sub-requests, the TLS-step
+  redirect check). Links are recorded as skipped (`matches --exclude`); a redirect into one
+  is recorded as not followed.

@@ -8,6 +8,7 @@ ScopePolicy.
 
 from __future__ import annotations
 
+import re
 from urllib.parse import urlsplit
 
 from albert.checks.dns_email import run_dns_email_checks
@@ -30,8 +31,10 @@ MAX_REQUESTS = 12  # whole quick run: page + redirects + security.txt
 MAX_SITE_HOPS = 2  # cross-host same-site redirects followed
 
 
-async def _get(policy: ScopePolicy, url: str, budget: int) -> tuple[FetchChain, int]:
-    async with HttpClient(policy, ClientLimits(max_requests=budget)) as client:
+async def _get(
+    policy: ScopePolicy, url: str, budget: int, exclude: re.Pattern[str] | None = None
+) -> tuple[FetchChain, int]:
+    async with HttpClient(policy, ClientLimits(max_requests=budget, exclude=exclude)) as client:
         try:
             return await client.fetch_chain(url), client.requests_made
         except BudgetExceededError as e:
@@ -90,6 +93,7 @@ async def run_tls_step(
     *,
     http_budget: int,
     limits: TLSLimits | None = None,
+    exclude: re.Pattern[str] | None = None,
 ) -> None:
     """TLS/cert inspection for ``url``'s host, plus the HTTP->HTTPS redirect and downgrade checks.
 
@@ -109,7 +113,7 @@ async def run_tls_step(
         findings += check_http_redirect(page_hops)
     elif http_budget > 0 and parts.port in (None, 443):
         try:
-            chain, _ = await _get(policy, f"http://{host}/", http_budget)
+            chain, _ = await _get(policy, f"http://{host}/", http_budget, exclude)
             result.pages += [h.url for h in chain.hops]
             findings += check_http_redirect(chain.hops) + check_downgrade(chain.hops)
         except (FetchError, OutOfScopeError) as e:
