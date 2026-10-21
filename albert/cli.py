@@ -20,6 +20,7 @@ from albert.core.diff import DiffError, load_prior
 from albert.core.engine import RULES_DIR, lint_rules
 from albert.core.models import ScanResult, Target
 from albert.core.report import build_report_data, write_report
+from albert.core.tls_client import TLSLimits
 from albert.core.vulndb import default_cache_dir
 from albert.quick import run_quick, run_tls_only
 from albert.scan import run_scan
@@ -50,6 +51,12 @@ def build_parser() -> argparse.ArgumentParser:
     _add_output_args(quick)
     quick.add_argument(
         "--tls-only", action="store_true", help="handshake + certificate inspection only, no HTTP"
+    )
+    quick.add_argument(
+        "--no-tls-enum",
+        action="store_true",
+        help="TLS: certificate handshake + inspection only; skip sslyze protocol/cipher "
+        "enumeration (for vendor-hosted targets whose TLS config isn't the owner's)",
     )
 
     scan = sub.add_parser("scan", help="authorized full crawl (needs a scope.toml entry)")
@@ -158,7 +165,8 @@ def _finish(
 def _cmd_quick(args: argparse.Namespace) -> int:
     try:
         target = Target(_target_url(args), "quick")
-        result = asyncio.run(run_tls_only(target) if args.tls_only else run_quick(target))
+        tls = TLSLimits(enumerate=not args.no_tls_enum)
+        result = asyncio.run(run_tls_only(target, tls) if args.tls_only else run_quick(target, tls))
         return _finish(result, args)
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)

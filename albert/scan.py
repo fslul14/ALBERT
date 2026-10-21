@@ -22,7 +22,7 @@ from albert.core.models import CollectedResponse, DnsSnapshot, RenderedPage, Sca
 from albert.core.scope import ScopePolicy, registrable_domain
 from albert.core.tls_client import TLSLimits
 from albert.core.vulndb import CveMode, default_cache_dir, lookup_all
-from albert.quick import run_dns_step, run_tls_step
+from albert.quick import TLS_ENUM_SKIPPED, run_dns_step, run_tls_step
 
 INSTALL_HINT = r".venv\Scripts\playwright install chromium"
 
@@ -147,9 +147,7 @@ async def run_scan(
         exclude=exclude,
     )
     if not tls_enum:
-        result.notes.append(
-            "TLS protocol/cipher enumeration skipped (--no-tls-enum): certificate handshake only"
-        )
+        result.notes.append(TLS_ENUM_SKIPPED)
     if full:
         snap = await run_dns_step(result, target.host)
         await _intel_step(result, target, snap, cache_dir, scope_hosts or frozenset(policy.hosts))

@@ -53,6 +53,7 @@ On macOS/Linux, use `.venv/bin/` instead of `.venv\Scripts\`.
 
 ```text
 albert quick <url>                      # one page, any public URL, no scope entry needed
+albert quick <url> --no-tls-enum        # same, certificate handshake only (vendor-hosted hosts)
 albert scan  <url> [options]            # authorized full crawl (needs a scope.toml entry)
 albert rules lint | list                # validate / list YAML rules and signature files
 ```

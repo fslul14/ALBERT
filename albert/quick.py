@@ -29,6 +29,9 @@ from albert.core.tls_client import TLSLimits, collect_tls
 
 MAX_REQUESTS = 12  # whole quick run: page + redirects + security.txt
 MAX_SITE_HOPS = 2  # cross-host same-site redirects followed
+TLS_ENUM_SKIPPED = (
+    "TLS protocol/cipher enumeration skipped (--no-tls-enum): certificate handshake only"
+)
 
 
 async def _get(
@@ -137,7 +140,7 @@ async def run_dns_step(result: ScanResult, host: str) -> DnsSnapshot | None:
     return snap
 
 
-async def run_quick(target: Target) -> ScanResult:
+async def run_quick(target: Target, tls_limits: TLSLimits | None = None) -> ScanResult:
     """Run every quick collector, then the matching checks."""
     result = ScanResult(target)
     policy = ScopePolicy.for_target(target)
@@ -160,7 +163,9 @@ async def run_quick(target: Target) -> ScanResult:
         run_checks(result, sec, ["security_txt"])
 
     tls_url = hops[-1].url if hops else target.url
-    await run_tls_step(result, policy, tls_url, hops, http_budget=budget)
+    await run_tls_step(result, policy, tls_url, hops, http_budget=budget, limits=tls_limits)
+    if tls_limits is not None and not tls_limits.enumerate:
+        result.notes.append(TLS_ENUM_SKIPPED)
     await run_dns_step(result, target.host)
     result.finish()
     return result
@@ -173,5 +178,7 @@ async def run_tls_only(target: Target, limits: TLSLimits | None = None) -> ScanR
         result, ScopePolicy.for_target(target), target.url, [], http_budget=0, limits=limits
     )
     result.notes.append("TLS-only run: no HTTP requests were made")
+    if limits is not None and not limits.enumerate:
+        result.notes.append(TLS_ENUM_SKIPPED)
     result.finish()
     return result
