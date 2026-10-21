@@ -19,6 +19,7 @@ from albert.core.http_client import ClientLimits, HttpClient
 from albert.core.intel_sources import collect_intel
 from albert.core.models import CollectedResponse, DnsSnapshot, RenderedPage, ScanResult, Target
 from albert.core.scope import ScopePolicy, registrable_domain
+from albert.core.tls_client import TLSLimits
 from albert.core.vulndb import CveMode, default_cache_dir, lookup_all
 from albert.quick import run_dns_step, run_tls_step
 
@@ -71,9 +72,11 @@ async def run_scan(
     cache_dir: Path | None = None,
     full: bool = False,
     scope_hosts: frozenset[str] | None = None,
+    tls_enum: bool = True,
 ) -> ScanResult:
     """Crawl the target (scope-checked, same host), run page checks, optionally render
-    pages headlessly (opt-in), then inspect TLS."""
+    pages headlessly (opt-in), then inspect TLS. ``tls_enum=False`` keeps TLS to the certificate
+    handshake (no sslyze protocol/cipher enumeration), e.g. for vendor-hosted targets."""
     result = ScanResult(target)
     budget = crawl_limits.max_pages * 3 + 20  # redirect hops + robots + sitemaps
     policy = ScopePolicy.for_target(target)
@@ -127,7 +130,18 @@ async def run_scan(
             f"analysed {len(crawl.scripts)} crawled + {len(rendered_scripts)} rendered script "
             "response(s) and inline scripts; .map files are never fetched"
         )
-    await run_tls_step(result, policy, target.url, crawl.responses[:1], http_budget=3)
+    await run_tls_step(
+        result,
+        policy,
+        target.url,
+        crawl.responses[:1],
+        http_budget=3,
+        limits=TLSLimits(enumerate=tls_enum),
+    )
+    if not tls_enum:
+        result.notes.append(
+            "TLS protocol/cipher enumeration skipped (--no-tls-enum): certificate handshake only"
+        )
     if full:
         snap = await run_dns_step(result, target.host)
         await _intel_step(result, target, snap, cache_dir, scope_hosts or frozenset(policy.hosts))

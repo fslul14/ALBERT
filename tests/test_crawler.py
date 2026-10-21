@@ -7,6 +7,7 @@ import httpx
 import pytest
 import respx
 
+import albert.quick
 from albert.cli import main
 from albert.core.crawler import (
     Crawler,
@@ -17,8 +18,9 @@ from albert.core.crawler import (
     sitemap_locs,
 )
 from albert.core.http_client import ClientLimits
-from albert.core.models import Target
+from albert.core.models import Target, TLSObservation
 from albert.core.scope import ScopePolicy
+from albert.core.tls_client import TLSLimits
 
 BASE = "https://site.test"
 FAST = ClientLimits(rate=0, concurrency=2)
@@ -223,6 +225,35 @@ def test_scan_crawls_and_groups_findings(tmp_path: Path) -> None:
     csp = next(f for f in data["findings"] if f["id"] == "HDR-CSP-MISSING")
     assert sorted(csp["urls"]) == [f"{BASE}/", f"{BASE}/a", f"{BASE}/b"]  # one grouped finding
     assert data["target"]["mode"] == "scan" and data["target"]["authorized_by"] == "self"
+
+
+@respx.mock
+@pytest.mark.parametrize("flag, enumerate", [([], True), (["--no-tls-enum"], False)])
+def test_scan_no_tls_enum_skips_enumeration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, flag: list[str], enumerate: bool
+) -> None:
+    seen: list[TLSLimits | None] = []
+    canned = albert.quick.collect_tls  # type: ignore[attr-defined]  # conftest's fake; record the limits it is given
+
+    async def fake(
+        policy: ScopePolicy, host: str, port: int = 443, limits: TLSLimits | None = None
+    ) -> TLSObservation:
+        seen.append(limits)
+        return await canned(policy, host, port, limits)
+
+    monkeypatch.setattr("albert.quick.collect_tls", fake)
+    scope = tmp_path / "scope.toml"
+    scope.write_text(
+        '[[target]]\nhost = "site.test"\nauthorized_by = "self"\ndate = "2026-10-20"\n',
+        encoding="utf-8",
+    )
+    site({"/": page()})
+    out = tmp_path / "reports"
+    args = ["scan", f"{BASE}/", "--scope", str(scope), "--out", str(out), "--rate", "0", *flag]
+    assert main(args) == 0
+    assert [lim.enumerate for lim in seen if lim is not None] == [enumerate]
+    data = json.loads(next(out.glob("site.test_*.json")).read_text(encoding="utf-8"))
+    assert any("--no-tls-enum" in n for n in data["notes"]) is not enumerate
 
 
 def test_scan_without_entry_asks_and_records(

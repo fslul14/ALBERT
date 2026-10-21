@@ -67,6 +67,12 @@ def build_parser() -> argparse.ArgumentParser:
         "Browsing): third-party services, never the target",
     )
     scan.add_argument(
+        "--no-tls-enum",
+        action="store_true",
+        help="TLS: certificate handshake + inspection only; skip sslyze protocol/cipher "
+        "enumeration (for vendor-hosted targets whose TLS config isn't the owner's)",
+    )
+    scan.add_argument(
         "--cve",
         choices=["off", "cache", "online"],
         default="cache",
@@ -184,6 +190,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 full=args.full,
                 cache_dir=default_cache_dir(args.out),
                 scope_hosts=frozenset(e.host for e in scope.entries),
+                tls_enum=not args.no_tls_enum,
             )
         )
         return _finish(result, args, prior)

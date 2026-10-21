@@ -70,7 +70,8 @@ albert rules lint | list                # validate / list YAML rules and signatu
 Scan options: `--render [--render-max N]`, `--max-pages N`, `--max-depth N`,
 `--max-scripts N` (0 disables script fetching), `--rate R` (requests/second per host),
 `--resume`, `--cve {cache,online,off}` (default `cache`: fully local; `online` queries
-OSV.dev/NVD about package versions), `--diff prior.json`, `--out DIR`, `--format md,json`.
+OSV.dev/NVD about package versions), `--no-tls-enum` (TLS: certificate handshake only, no
+sslyze protocol/cipher enumeration; for vendor-hosted targets), `--diff prior.json`, `--out DIR`, `--format md,json`.
 
 `scope.toml` (gitignored) looks like `scope.example.toml`:
 

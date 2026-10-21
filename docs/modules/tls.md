@@ -20,3 +20,6 @@
 - HTTP->HTTPS redirect: uses the page's own hops when the start URL was `http://`; otherwise
   `quick`/`scan` GET `http://<host>/` once (the start URL over plain HTTP).
 - `albert quick <url> --tls-only`: handshakes and cert inspection only, no HTTP requests.
+- `albert scan <url> --no-tls-enum`: certificate handshake + inspection only (validity, expiry,
+  hostname, chain); sslyze enumeration is skipped. For vendor-hosted hosts (Shopify, Vercel)
+  whose protocol/cipher config is the platform's, not the site owner's.
